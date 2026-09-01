@@ -1,0 +1,16 @@
+services:
+  database:
+    image: postgres:18
+    container_name: a-trader-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: atrader
+      POSTGRES_PASSWORD: atrader_dev_password
+      POSTGRES_DB: atrader
+    ports:
+      - "5432:5432"
+    volumes:
+      - atrader_postgres_data:/var/lib/postgresql
+
+volumes:
+  atrader_postgres_data:
