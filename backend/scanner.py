@@ -20,6 +20,11 @@ from fastapi import (
 
 from sqlmodel import SQLModel
 
+from ml.predictor import (
+    get_v7_predictor,
+    predict_live_v7_universe,
+)
+
 
 # =========================================================
 # CONFIGURATION
@@ -199,6 +204,18 @@ class ScannerCandidate(SQLModel):
 
     rank_score: int
 
+    # -----------------------------------------------------
+    # ML OPPORTUNITY RANKING
+    # -----------------------------------------------------
+
+    ml_rank: int | None = None
+
+    ml_percentile: float | None = None
+
+    ml_raw_score: float | None = None
+
+    ml_universe_size: int | None = None
+
     intraday_trend: str
 
     action_state: str
@@ -270,6 +287,20 @@ class ScannerResponse(SQLModel):
     matched: int
 
     minimum_score: int
+
+    # -----------------------------------------------------
+    # ML STATUS
+    # -----------------------------------------------------
+
+    ml_status: str
+
+    ml_model: str | None = None
+
+    ml_model_version: str | None = None
+
+    ml_universe_size: int | None = None
+
+    ml_error: str | None = None
 
     candidates: list[
         ScannerCandidate
@@ -3828,6 +3859,99 @@ def run_scan(
                     symbol,
                 )
 
+    # -----------------------------------------------------
+    # V7 ML OPPORTUNITY RANKING
+    # -----------------------------------------------------
+    #
+    # V7 is intentionally kept separate from the existing
+    # technical rank_score. It ranks its fixed validated
+    # 49-stock universe and is attached as an independent
+    # evidence layer.
+    #
+    # If ML inference fails, the scanner remains usable and
+    # falls back to technical-only output.
+
+    ml_status = "unavailable"
+
+    ml_model: str | None = None
+
+    ml_model_version: str | None = None
+
+    ml_universe_size: int | None = None
+
+    ml_error: str | None = None
+
+    try:
+        predictor = (
+            get_v7_predictor()
+        )
+
+        ml_results = (
+            predict_live_v7_universe(
+                predictor
+            )
+        )
+
+        ml_status = "available"
+
+        ml_model = (
+            predictor.model_name
+        )
+
+        ml_model_version = (
+            predictor.model_version
+        )
+
+        ml_universe_size = len(
+            ml_results
+        )
+
+        ml_by_symbol = {
+            result.symbol:
+                result
+
+            for result
+            in ml_results
+        }
+
+        for candidate in candidates:
+            ml_result = (
+                ml_by_symbol.get(
+                    candidate.symbol.upper()
+                )
+            )
+
+            if ml_result is None:
+                continue
+
+            candidate.ml_rank = (
+                ml_result.rank
+            )
+
+            candidate.ml_percentile = round(
+                ml_result.percentile,
+                2,
+            )
+
+            candidate.ml_raw_score = round(
+                ml_result.raw_score,
+                6,
+            )
+
+            candidate.ml_universe_size = (
+                ml_result.universe_size
+            )
+
+    except Exception as exc:
+        # ML is supplementary. A market-data or model
+        # failure must not break the technical scanner,
+        # but the API must expose that ML was unavailable.
+        ml_error = str(
+            exc
+        )[
+            :500
+        ]
+
     candidates.sort(
         key=lambda item: (
             item.rank_score,
@@ -3874,6 +3998,26 @@ def run_scan(
 
         minimum_score=(
             minimum_score
+        ),
+
+        ml_status=(
+            ml_status
+        ),
+
+        ml_model=(
+            ml_model
+        ),
+
+        ml_model_version=(
+            ml_model_version
+        ),
+
+        ml_universe_size=(
+            ml_universe_size
+        ),
+
+        ml_error=(
+            ml_error
         ),
 
         candidates=candidates,
