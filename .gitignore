@@ -23,3 +23,6 @@ out/
 npm-debug.log*
 backend/*.backup
 backend/*.backup
+
+# ML market-data snapshots
+backend/ml/data/

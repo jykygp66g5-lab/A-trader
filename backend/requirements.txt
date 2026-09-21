@@ -11,3 +11,5 @@ yfinance
 pandas
 numpy
 email-validator
+scikit-learn
+joblib
