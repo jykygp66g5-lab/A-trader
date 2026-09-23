@@ -11,6 +11,7 @@ import {
 
 import Sidebar from "@/components/Sidebar";
 import PageHeader from "@/components/layout/PageHeader";
+import PageSectionNav from "@/components/ui/PageSectionNav";
 import Card from "@/components/ui/Card";
 import MetricCard from "@/components/ui/MetricCard";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -623,6 +624,14 @@ function getDirectionTone(
 /* =========================================================
    PAGE
 ========================================================= */
+
+
+
+const JOURNAL_SECTIONS = [
+  { id: "snapshot", label: "Snapshot" },
+  { id: "trade", label: "Trade" },
+  { id: "history", label: "History" },
+] as const;
 
 export default function JournalPage() {
   const [
@@ -2063,6 +2072,9 @@ export default function JournalPage() {
           />
 
 
+          <PageSectionNav sections={JOURNAL_SECTIONS} />
+
+
           <div className="space-y-8">
 
             {/* ===========================================
@@ -2083,7 +2095,7 @@ export default function JournalPage() {
                 STATS
             =========================================== */}
 
-            <section>
+            <section id="snapshot" className="scroll-mt-28">
 
               <SectionHeading
                 eyebrow="Performance"
@@ -2203,7 +2215,7 @@ export default function JournalPage() {
 
             {showForm
             && (
-              <section>
+              <section id="trade" className="scroll-mt-28">
 
                 <SectionHeading
                   eyebrow={
@@ -3135,7 +3147,7 @@ export default function JournalPage() {
                 JOURNAL HISTORY
             =========================================== */}
 
-            <section>
+            <section id="history" className="scroll-mt-28">
 
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
 

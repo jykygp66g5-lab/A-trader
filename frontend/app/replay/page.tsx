@@ -9,6 +9,7 @@ import {
 
 import Sidebar from "@/components/Sidebar";
 import PageHeader from "@/components/layout/PageHeader";
+import PageSectionNav from "@/components/ui/PageSectionNav";
 import Card from "@/components/ui/Card";
 import MetricCard from "@/components/ui/MetricCard";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -92,6 +93,16 @@ function formatReplayTime(
 /* =========================================================
    PAGE
 ========================================================= */
+
+
+
+const REPLAY_SECTIONS = [
+  { id: "setup", label: "Setup" },
+  { id: "overview", label: "Overview" },
+  { id: "chart", label: "Chart" },
+  { id: "execution", label: "Execution" },
+  { id: "info", label: "Info" },
+] as const;
 
 export default function ReplayPage() {
   const [
@@ -486,6 +497,9 @@ export default function ReplayPage() {
           />
 
 
+          <PageSectionNav sections={REPLAY_SECTIONS} />
+
+
           <div className="space-y-8">
 
             {/* ===========================================
@@ -506,7 +520,7 @@ export default function ReplayPage() {
                 REPLAY SETUP
             =========================================== */}
 
-            <section>
+            <section id="setup" className="scroll-mt-28">
 
               <SectionHeading
                 eyebrow="Session setup"
@@ -730,7 +744,7 @@ export default function ReplayPage() {
                     SESSION OVERVIEW
                 ======================================= */}
 
-                <section>
+                <section id="overview" className="scroll-mt-28">
 
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
 
@@ -910,7 +924,7 @@ export default function ReplayPage() {
                     CHART
                 ======================================= */}
 
-                <section>
+                <section id="chart" className="scroll-mt-28">
 
                   <SectionHeading
                     eyebrow="Replay chart"
@@ -958,7 +972,7 @@ export default function ReplayPage() {
                     EXECUTION PANEL
                 ======================================= */}
 
-                <section>
+                <section id="execution" className="scroll-mt-28">
 
                   <SectionHeading
                     eyebrow="Practice execution"
@@ -1004,7 +1018,7 @@ export default function ReplayPage() {
                     SESSION INFORMATION
                 ======================================= */}
 
-                <section>
+                <section id="info" className="scroll-mt-28">
 
                   <SectionHeading
                     eyebrow="Session state"

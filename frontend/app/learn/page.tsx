@@ -8,6 +8,7 @@ import {
 
 import Sidebar from "@/components/Sidebar";
 import PageHeader from "@/components/layout/PageHeader";
+import PageSectionNav from "@/components/ui/PageSectionNav";
 import Card from "@/components/ui/Card";
 import MetricCard from "@/components/ui/MetricCard";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -2280,6 +2281,13 @@ const STORAGE_KEY =
   "a-trader-learning-progress";
 
 
+
+
+const LEARN_SECTIONS = [
+  { id: "progress", label: "Progress" },
+  { id: "curriculum", label: "Curriculum" },
+] as const;
+
 export default function LearningPage() {
   const [
     completedLessons,
@@ -2625,13 +2633,16 @@ export default function LearningPage() {
           />
 
 
+          <PageSectionNav sections={LEARN_SECTIONS} />
+
+
           <div className="space-y-10">
 
             {/* ===========================================
                 PROGRESS
             =========================================== */}
 
-            <section>
+            <section id="progress" className="scroll-mt-28">
 
               <SectionHeading
                 eyebrow="Progress"
@@ -2753,7 +2764,7 @@ export default function LearningPage() {
                 CURRICULUM
             =========================================== */}
 
-            <section>
+            <section id="curriculum" className="scroll-mt-28">
 
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
 

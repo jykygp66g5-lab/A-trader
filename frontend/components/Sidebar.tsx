@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  api,
+} from "@/lib/api";
 
 
 const navigation = [
@@ -280,46 +287,157 @@ function Brand({
 }: {
   compact?: boolean;
 }) {
+  const [
+    unreadCount,
+    setUnreadCount,
+  ] = useState(0);
+
+
+  useEffect(
+    () => {
+      let cancelled = false;
+
+
+      async function loadUnreadCount() {
+        try {
+          const response = await api(
+            "/alerts/notifications/unread-count",
+          );
+
+
+          if (!response.ok) {
+            return;
+          }
+
+
+          const data =
+            await response.json();
+
+
+          if (!cancelled) {
+            setUnreadCount(
+              data.unread_count ?? 0,
+            );
+          }
+        } catch {
+          // Notification count should never break navigation.
+        }
+      }
+
+
+      void loadUnreadCount();
+
+
+      const interval =
+        window.setInterval(
+          () => {
+            void loadUnreadCount();
+          },
+          30000,
+        );
+
+
+      return () => {
+        cancelled = true;
+
+        window.clearInterval(
+          interval,
+        );
+      };
+    },
+    [],
+  );
+
+
   return (
-    <Link
-      href="/dashboard"
-      className="group flex min-w-0 items-center gap-3"
-    >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 shadow-sm transition group-hover:border-zinc-700">
+    <div className="flex w-full min-w-0 items-center gap-3">
 
-        <span className="text-sm font-bold tracking-tight text-white">
-          A
-        </span>
+      <Link
+        href="/dashboard"
+        className="group flex min-w-0 flex-1 items-center gap-3"
+      >
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 shadow-sm transition group-hover:border-zinc-700">
 
-      </div>
+          <span className="text-sm font-bold tracking-tight text-white">
+            A
+          </span>
+
+        </div>
+
+
+        {!compact
+        && (
+          <div className="min-w-0 flex-1">
+
+            <div className="flex items-center gap-2">
+
+              <span className="text-[15px] font-semibold tracking-tight text-white">
+                A Trader
+              </span>
+
+
+              <span className="rounded-md border border-blue-900/60 bg-blue-950/30 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-blue-300">
+                Beta
+              </span>
+
+            </div>
+
+
+            <p className="mt-0.5 text-[11px] text-zinc-600">
+              Trading workspace
+            </p>
+
+          </div>
+        )}
+
+      </Link>
 
 
       {!compact
       && (
-        <div className="min-w-0">
+        <Link
+          href="/alerts#notifications"
 
-          <div className="flex items-center gap-2">
+          aria-label={
+            unreadCount > 0
+              ? `${unreadCount} unread notifications`
+              : "Notifications"
+          }
 
-            <span className="text-[15px] font-semibold tracking-tight text-white">
-              A Trader
+          title="Notifications"
+
+          className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-500 transition hover:border-zinc-700 hover:bg-zinc-900 hover:text-white"
+        >
+          <svg
+            className="h-[17px] w-[17px]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+            <path d="M10 21h4" />
+          </svg>
+
+
+          {unreadCount > 0
+          && (
+            <span className="absolute -right-1.5 -top-1.5 flex min-h-[17px] min-w-[17px] items-center justify-center rounded-full border-2 border-[#080808] bg-blue-500 px-1 text-[9px] font-bold leading-none text-white">
+              {
+                unreadCount > 99
+                  ? "99+"
+                  : unreadCount
+              }
             </span>
+          )}
 
-
-            <span className="rounded-md border border-blue-900/60 bg-blue-950/30 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-blue-300">
-              Beta
-            </span>
-
-          </div>
-
-
-          <p className="mt-0.5 text-[11px] text-zinc-600">
-            Trading workspace
-          </p>
-
-        </div>
+        </Link>
       )}
 
-    </Link>
+    </div>
   );
 }
 

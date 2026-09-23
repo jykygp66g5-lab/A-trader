@@ -247,6 +247,128 @@ def intraday_cutoff() -> datetime:
 
 
 # =========================================================
+# LIGHTWEIGHT MARKET SNAPSHOT
+# =========================================================
+
+def get_market_snapshot(
+    symbol: str,
+) -> dict[str, float | int]:
+    ticker_symbol = sanitize_symbol(
+        symbol,
+    )
+
+    if not ticker_symbol:
+        raise ValueError(
+            "A valid market symbol is required.",
+        )
+
+    # -----------------------------------------------------
+    # INTRADAY PRICE / VOLUME
+    # -----------------------------------------------------
+
+    data = yf.download(
+        ticker_symbol,
+        period="5d",
+        interval="5m",
+        auto_adjust=True,
+        progress=False,
+        prepost=False,
+        threads=False,
+    )
+
+    if data.empty:
+        raise ValueError(
+            f"No market data found for {ticker_symbol}.",
+        )
+
+    (
+        _open,
+        _high,
+        _low,
+        close,
+        volume,
+    ) = extract_market_columns(
+        data,
+    )
+
+    close = close.dropna()
+    volume = volume.dropna()
+
+    if close.empty:
+        raise ValueError(
+            f"No valid price data found for {ticker_symbol}.",
+        )
+
+    current_price = float(
+        close.iloc[-1],
+    )
+
+    latest_volume = (
+        int(volume.iloc[-1])
+        if not volume.empty
+        else 0
+    )
+
+    # -----------------------------------------------------
+    # DAILY PERCENT CHANGE
+    # -----------------------------------------------------
+
+    daily_data = yf.download(
+        ticker_symbol,
+        period="5d",
+        interval="1d",
+        auto_adjust=True,
+        progress=False,
+        prepost=False,
+        threads=False,
+    )
+
+    percent_change = 0.0
+
+    if not daily_data.empty:
+        (
+            _daily_open,
+            _daily_high,
+            _daily_low,
+            daily_close,
+            _daily_volume,
+        ) = extract_market_columns(
+            daily_data,
+        )
+
+        daily_close = (
+            daily_close
+            .dropna()
+        )
+
+        if len(daily_close) >= 2:
+            previous_close = float(
+                daily_close.iloc[-2],
+            )
+
+            if previous_close != 0:
+                percent_change = (
+                    (
+                        current_price
+                        - previous_close
+                    )
+                    / previous_close
+                ) * 100
+
+    return {
+        "price": round(
+            current_price,
+            4,
+        ),
+        "percent_change": round(
+            percent_change,
+            4,
+        ),
+        "volume": latest_volume,
+    }
+
+
+# =========================================================
 # MARKET ANALYSIS
 # =========================================================
 

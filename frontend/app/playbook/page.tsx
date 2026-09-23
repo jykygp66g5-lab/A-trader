@@ -11,6 +11,7 @@ import {
 
 import Sidebar from "@/components/Sidebar";
 import PageHeader from "@/components/layout/PageHeader";
+import PageSectionNav from "@/components/ui/PageSectionNav";
 import Card from "@/components/ui/Card";
 import MetricCard from "@/components/ui/MetricCard";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -471,6 +472,14 @@ function getConditionTone(
 /* =========================================================
    PAGE
 ========================================================= */
+
+
+
+const PLAYBOOK_SECTIONS = [
+  { id: "overview", label: "Overview" },
+  { id: "editor", label: "Editor" },
+  { id: "setups", label: "Setups" },
+] as const;
 
 export default function PlaybookPage() {
   const [
@@ -1510,6 +1519,9 @@ export default function PlaybookPage() {
           />
 
 
+          <PageSectionNav sections={PLAYBOOK_SECTIONS} />
+
+
           <div className="space-y-8">
 
             {/* ===========================================
@@ -1542,7 +1554,7 @@ export default function PlaybookPage() {
                       OVERVIEW
                   ===================================== */}
 
-                  <section>
+                  <section id="overview" className="scroll-mt-28">
 
                     <SectionHeading
                       eyebrow="Overview"
@@ -1647,7 +1659,7 @@ export default function PlaybookPage() {
 
                   {showForm
                   && (
-                    <section>
+                    <section id="editor" className="scroll-mt-28">
 
                       <SectionHeading
                         eyebrow={
@@ -1719,7 +1731,7 @@ export default function PlaybookPage() {
                       SETUP LIBRARY
                   ===================================== */}
 
-                  <section>
+                  <section id="setups" className="scroll-mt-28">
 
                     <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
 

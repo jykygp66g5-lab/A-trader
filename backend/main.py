@@ -25,6 +25,13 @@ from playbook.router import create_playbook_router
 from market.router import create_market_router
 from ai_coach.router import create_ai_coach_router
 
+# Import alert models so SQLModel registers the tables
+# before create_db_and_tables() runs.
+from alerts.models import Alert, Notification
+from alerts.push_models import PushSubscription
+from alerts.push_router import create_push_router
+from alerts.router import create_alerts_router
+
 from replay import create_replay_router
 from scanner import create_scanner_router
 
@@ -168,6 +175,18 @@ app.include_router(
 
 app.include_router(
     create_replay_router(
+        get_current_user,
+    ),
+)
+
+app.include_router(
+    create_alerts_router(
+        get_current_user,
+    ),
+)
+
+app.include_router(
+    create_push_router(
         get_current_user,
     ),
 )

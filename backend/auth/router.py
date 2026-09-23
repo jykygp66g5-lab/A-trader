@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Callable
 
 from fastapi import (
@@ -19,6 +20,8 @@ from sqlmodel import (
 from database import get_session
 
 from .models import (
+    CURRENT_PRIVACY_VERSION,
+    CURRENT_TERMS_VERSION,
     Token,
     User,
     UserCreate,
@@ -62,6 +65,63 @@ def create_auth_router(
             get_session,
         ),
     ):
+        # -------------------------------------------------
+        # AGE REQUIREMENT
+        # -------------------------------------------------
+
+        if user_data.age_confirmed is not True:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "You must confirm that you are at least "
+                    "18 years old to create an A-Trader account."
+                ),
+            )
+
+        # -------------------------------------------------
+        # LEGAL ACCEPTANCE
+        # -------------------------------------------------
+
+        if (
+            user_data.terms_accepted is not True
+            or user_data.privacy_accepted is not True
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "You must accept the Terms of Service "
+                    "and Privacy Policy to create an account."
+                ),
+            )
+
+        # -------------------------------------------------
+        # LEGAL DOCUMENT VERSIONS
+        # -------------------------------------------------
+
+        if user_data.terms_version != CURRENT_TERMS_VERSION:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "The Terms of Service version is no longer "
+                    "current. Please review the current Terms "
+                    "of Service."
+                ),
+            )
+
+        if user_data.privacy_version != CURRENT_PRIVACY_VERSION:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "The Privacy Policy version is no longer "
+                    "current. Please review the current Privacy "
+                    "Policy."
+                ),
+            )
+
+        # -------------------------------------------------
+        # EMAIL
+        # -------------------------------------------------
+
         email = validate_email(
             user_data.email,
         )
@@ -80,12 +140,29 @@ def create_auth_router(
                 ),
             )
 
+        # -------------------------------------------------
+        # RECORD ACCEPTANCE
+        # -------------------------------------------------
+
+        accepted_at = datetime.now(
+            timezone.utc,
+        )
+
+        # -------------------------------------------------
+        # CREATE USER
+        # -------------------------------------------------
+
         user = User(
             name=user_data.name.strip(),
             email=email,
             hashed_password=password_hash.hash(
                 user_data.password,
             ),
+            age_confirmed_at=accepted_at,
+            terms_version=CURRENT_TERMS_VERSION,
+            terms_accepted_at=accepted_at,
+            privacy_version=CURRENT_PRIVACY_VERSION,
+            privacy_accepted_at=accepted_at,
         )
 
         session.add(user)

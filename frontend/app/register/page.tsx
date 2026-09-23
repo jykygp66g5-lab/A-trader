@@ -12,14 +12,57 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [legalAccepted, setLegalAccepted] = useState(false);
+
+  const [termsOpened, setTermsOpened] = useState(false);
+  const [privacyOpened, setPrivacyOpened] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const legalDocumentsOpened = termsOpened && privacyOpened;
+
+  const canCreateAccount =
+    ageConfirmed &&
+    legalAccepted &&
+    legalDocumentsOpened &&
+    !loading;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (password !== confirmPassword) {
       setError("The passwords do not match.");
+      return;
+    }
+
+    if (!ageConfirmed) {
+      setError(
+        "You must confirm that you are at least 18 years old to create an A-Trader account.",
+      );
+      return;
+    }
+
+    if (!termsOpened) {
+      setError(
+        "Please open and review the Terms of Service before creating your account.",
+      );
+      return;
+    }
+
+    if (!privacyOpened) {
+      setError(
+        "Please open and review the Privacy Policy before creating your account.",
+      );
+      return;
+    }
+
+    if (!legalAccepted) {
+      setError(
+        "You must agree to the Terms of Service and Privacy Policy to create an account.",
+      );
       return;
     }
 
@@ -33,12 +76,19 @@ export default function RegisterPage() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: name.trim(),
-            email: email.trim().toLowerCase(),
-            password,
-          }),
+          },body: JSON.stringify({
+  name: name.trim(),
+  email: email.trim().toLowerCase(),
+  password,
+
+  age_confirmed: ageConfirmed,
+
+  terms_accepted: legalAccepted,
+  privacy_accepted: legalAccepted,
+
+  terms_version: "2026-09-15",
+  privacy_version: "2026-09-15",
+}),
         },
       );
 
@@ -51,16 +101,25 @@ export default function RegisterPage() {
       }
 
       const loginBody = new URLSearchParams();
-      loginBody.set("username", email.trim().toLowerCase());
+
+      loginBody.set(
+        "username",
+        email.trim().toLowerCase(),
+      );
+
       loginBody.set("password", password);
 
-      const loginResponse = await fetch(`${API_URL}/auth/token`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
+      const loginResponse = await fetch(
+        `${API_URL}/auth/token`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/x-www-form-urlencoded",
+          },
+          body: loginBody,
         },
-        body: loginBody,
-      });
+      );
 
       const loginData = await loginResponse.json();
 
@@ -72,11 +131,14 @@ export default function RegisterPage() {
       }
 
       saveToken(loginData.access_token);
+
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Something went wrong.",
+        err instanceof Error
+          ? err.message
+          : "Something went wrong.",
       );
     } finally {
       setLoading(false);
@@ -87,7 +149,10 @@ export default function RegisterPage() {
     <main className="flex min-h-screen items-center justify-center bg-black px-6 py-12 text-white">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <Link href="/" className="text-2xl font-semibold">
+          <Link
+            href="/"
+            className="text-2xl font-semibold"
+          >
             A Trader
           </Link>
 
@@ -115,33 +180,43 @@ export default function RegisterPage() {
           )}
 
           <label className="block">
-            <span className="text-sm text-zinc-400">Name</span>
+            <span className="text-sm text-zinc-400">
+              Name
+            </span>
 
             <input
               required
               value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Maddox Butler"
+              onChange={(event) =>
+                setName(event.target.value)
+              }
+              placeholder="Your name"
               className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-emerald-400"
             />
           </label>
 
           <label className="mt-5 block">
-            <span className="text-sm text-zinc-400">Email address</span>
+            <span className="text-sm text-zinc-400">
+              Email address
+            </span>
 
             <input
               required
               type="email"
               autoComplete="email"
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) =>
+                setEmail(event.target.value)
+              }
               placeholder="you@example.com"
               className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-emerald-400"
             />
           </label>
 
           <label className="mt-5 block">
-            <span className="text-sm text-zinc-400">Password</span>
+            <span className="text-sm text-zinc-400">
+              Password
+            </span>
 
             <input
               required
@@ -149,7 +224,9 @@ export default function RegisterPage() {
               minLength={8}
               autoComplete="new-password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
               placeholder="At least 8 characters"
               className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-emerald-400"
             />
@@ -174,13 +251,119 @@ export default function RegisterPage() {
             />
           </label>
 
+          <div className="mt-6 space-y-5 border-t border-zinc-800 pt-6">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={ageConfirmed}
+                onChange={(event) =>
+                  setAgeConfirmed(event.target.checked)
+                }
+                className="mt-1 h-4 w-4 shrink-0 accent-emerald-400"
+              />
+
+              <span className="text-sm leading-6 text-zinc-300">
+                I confirm that I am 18 years of age or
+                older.
+              </span>
+            </label>
+
+            <div>
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={legalAccepted}
+                  disabled={!legalDocumentsOpened}
+                  onChange={(event) =>
+                    setLegalAccepted(
+                      event.target.checked,
+                    )
+                  }
+                  className="mt-1 h-4 w-4 shrink-0 accent-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+                />
+
+                <span className="text-sm leading-6 text-zinc-300">
+                  I have read and agree to the{" "}
+                  <Link
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-emerald-400 hover:text-emerald-300"
+                    onClick={() => {
+                      setTermsOpened(true);
+                      setError("");
+                    }}
+                  >
+                    Terms of Service
+                  </Link>{" "}
+                  and{" "}
+                  <Link
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-emerald-400 hover:text-emerald-300"
+                    onClick={() => {
+                      setPrivacyOpened(true);
+                      setError("");
+                    }}
+                  >
+                    Privacy Policy
+                  </Link>
+                  .
+                </span>
+              </div>
+
+              {!legalDocumentsOpened && (
+                <div className="ml-7 mt-3 space-y-1 text-xs">
+                  <p
+                    className={
+                      termsOpened
+                        ? "text-emerald-400"
+                        : "text-zinc-500"
+                    }
+                  >
+                    {termsOpened ? "✓" : "○"} Terms of
+                    Service opened
+                  </p>
+
+                  <p
+                    className={
+                      privacyOpened
+                        ? "text-emerald-400"
+                        : "text-zinc-500"
+                    }
+                  >
+                    {privacyOpened ? "✓" : "○"} Privacy
+                    Policy opened
+                  </p>
+                </div>
+              )}
+
+              {legalDocumentsOpened && (
+                <p className="ml-7 mt-3 text-xs text-emerald-400">
+                  ✓ Legal documents opened — you may now
+                  confirm your agreement.
+                </p>
+              )}
+            </div>
+          </div>
+
           <button
             type="submit"
-            disabled={loading}
-            className="mt-6 w-full rounded-xl bg-emerald-400 px-5 py-3 font-semibold text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={!canCreateAccount}
+            className="mt-6 w-full rounded-xl bg-emerald-400 px-5 py-3 font-semibold text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500 disabled:opacity-70"
           >
-            {loading ? "Creating account..." : "Create Account"}
+            {loading
+              ? "Creating account..."
+              : "Create Account"}
           </button>
+
+          {!canCreateAccount && !loading && (
+            <p className="mt-3 text-center text-xs leading-5 text-zinc-600">
+              Confirm your age, open both legal documents,
+              and accept them to create an account.
+            </p>
+          )}
 
           <p className="mt-6 text-center text-sm text-zinc-500">
             Already have an account?{" "}

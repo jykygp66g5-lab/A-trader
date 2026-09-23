@@ -20,6 +20,7 @@ import {
 
 import Sidebar from "@/components/Sidebar";
 import PageHeader from "@/components/layout/PageHeader";
+import PageSectionNav from "@/components/ui/PageSectionNav";
 import Card from "@/components/ui/Card";
 import MetricCard from "@/components/ui/MetricCard";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -251,6 +252,16 @@ function filterByDateRange(
 /* =========================================================
    PAGE
 ========================================================= */
+
+
+
+const DASHBOARD_SECTIONS = [
+  { id: "performance", label: "Performance" },
+  { id: "equity", label: "Equity" },
+  { id: "execution", label: "Execution" },
+  { id: "strategy", label: "Strategy" },
+  { id: "recent", label: "Recent" },
+] as const;
 
 export default function Dashboard() {
   const [
@@ -1550,6 +1561,9 @@ export default function Dashboard() {
           />
 
 
+          <PageSectionNav sections={DASHBOARD_SECTIONS} />
+
+
           {error && (
             <div className="mb-6 rounded-2xl border border-red-900/60 bg-red-950/30 px-5 py-4 text-sm text-red-300">
               {error}
@@ -1634,7 +1648,7 @@ export default function Dashboard() {
                   PRIMARY METRICS
               =========================================== */}
 
-              <section>
+              <section id="performance" className="scroll-mt-28">
 
                 <SectionHeading
                   eyebrow="Performance"
@@ -1735,7 +1749,7 @@ export default function Dashboard() {
                   EQUITY + SNAPSHOT
               =========================================== */}
 
-              <section className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+              <section id="equity" className="scroll-mt-28 grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
 
                 <Card
                   title="Equity curve"
@@ -2005,7 +2019,7 @@ export default function Dashboard() {
                   DIRECTION ANALYSIS
               =========================================== */}
 
-              <section>
+              <section id="execution" className="scroll-mt-28">
 
                 <SectionHeading
                   eyebrow="Execution"
@@ -2119,7 +2133,7 @@ export default function Dashboard() {
                   STRATEGY
               =========================================== */}
 
-              <section>
+              <section id="strategy" className="scroll-mt-28">
 
                 <SectionHeading
                   eyebrow="Edge"
@@ -2198,6 +2212,7 @@ export default function Dashboard() {
                   RECENT TRADES
               =========================================== */}
 
+              <div id="recent" className="scroll-mt-28">
               <Card
                 padding="none"
                 className="overflow-hidden"
@@ -2369,6 +2384,8 @@ export default function Dashboard() {
                 )}
 
               </Card>
+
+              </div>
 
 
               {/* ===========================================

@@ -13,3 +13,4 @@ numpy
 email-validator
 scikit-learn
 joblib
+pywebpush

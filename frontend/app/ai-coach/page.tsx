@@ -5,6 +5,7 @@ import {
 } from "react";
 
 import Sidebar from "@/components/Sidebar";
+import PageSectionNav from "@/components/ui/PageSectionNav";
 import { api } from "@/lib/api";
 
 
@@ -41,6 +42,15 @@ type CoachState =
   | "complete"
   | "error";
 
+
+
+
+const AI_COACH_SECTIONS = [
+  { id: "coach-summary", label: "Summary" },
+  { id: "patterns", label: "Patterns" },
+  { id: "improvements", label: "Improvements" },
+  { id: "context", label: "Context" },
+] as const;
 
 export default function AICoachPage() {
   const [
@@ -228,6 +238,10 @@ export default function AICoachPage() {
 
         <div className="space-y-6 p-6 lg:p-10">
 
+          {report && (
+            <PageSectionNav sections={AI_COACH_SECTIONS} />
+          )}
+
           {error && (
             <div className="rounded-2xl border border-red-900/70 bg-red-950/20 p-5">
 
@@ -370,7 +384,10 @@ export default function AICoachPage() {
                   )}
 
 
-                <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+                <section
+                  id="coach-summary"
+                  className="scroll-mt-28 rounded-2xl border border-zinc-800 bg-zinc-950 p-6"
+                >
 
                   <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
 
@@ -413,7 +430,7 @@ export default function AICoachPage() {
                 </section>
 
 
-                <section>
+                <section id="patterns" className="scroll-mt-28">
 
                   <SectionHeading
                     eyebrow="Patterns"
@@ -458,7 +475,7 @@ export default function AICoachPage() {
                 </section>
 
 
-                <section className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+                <section id="improvements" className="scroll-mt-28 grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
 
                   <article className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
 
@@ -561,7 +578,7 @@ export default function AICoachPage() {
                 </section>
 
 
-                <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
+                <section id="context" className="scroll-mt-28 rounded-2xl border border-zinc-800 bg-zinc-950 p-6">
 
                   <SectionHeading
                     eyebrow="What the coach considers"

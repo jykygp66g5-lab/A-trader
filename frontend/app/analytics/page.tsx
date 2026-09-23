@@ -22,6 +22,7 @@ import {
 
 import Sidebar from "@/components/Sidebar";
 import PageHeader from "@/components/layout/PageHeader";
+import PageSectionNav from "@/components/ui/PageSectionNav";
 import Card from "@/components/ui/Card";
 import MetricCard from "@/components/ui/MetricCard";
 import StatusBadge from "@/components/ui/StatusBadge";
@@ -498,6 +499,17 @@ function filterTradesByRange(
 /* =========================================================
    PAGE
 ========================================================= */
+
+
+
+const ANALYTICS_SECTIONS = [
+  { id: "results", label: "Results" },
+  { id: "curves", label: "Curves" },
+  { id: "execution", label: "Execution" },
+  { id: "strategies", label: "Strategies" },
+  { id: "behavior", label: "Behavior" },
+  { id: "journal", label: "Journal" },
+] as const;
 
 export default function AnalyticsPage() {
   const [
@@ -2565,6 +2577,9 @@ export default function AnalyticsPage() {
           />
 
 
+          <PageSectionNav sections={ANALYTICS_SECTIONS} />
+
+
           <div className="space-y-8">
 
             {/* ===========================================
@@ -2593,7 +2608,7 @@ export default function AnalyticsPage() {
                       PRIMARY METRICS
                   ===================================== */}
 
-                  <section>
+                  <section id="results" className="scroll-mt-28">
 
                     <SectionHeading
                       eyebrow="Performance"
@@ -2771,7 +2786,7 @@ export default function AnalyticsPage() {
                       CURVES
                   ===================================== */}
 
-                  <section>
+                  <section id="curves" className="scroll-mt-28">
 
                     <SectionHeading
                       eyebrow="Performance curves"
@@ -3044,7 +3059,7 @@ export default function AnalyticsPage() {
                       LONG VS SHORT
                   ===================================== */}
 
-                  <section>
+                  <section id="execution" className="scroll-mt-28">
 
                     <SectionHeading
                       eyebrow="Direction"
@@ -3164,7 +3179,7 @@ export default function AnalyticsPage() {
                       STRATEGIES
                   ===================================== */}
 
-                  <section>
+                  <section id="strategies" className="scroll-mt-28">
 
                     <SectionHeading
                       eyebrow="Strategies"
@@ -3474,7 +3489,7 @@ export default function AnalyticsPage() {
                       TAGS
                   ===================================== */}
 
-                  <section>
+                  <section id="behavior" className="scroll-mt-28">
 
                     <SectionHeading
                       eyebrow="Behavior"
@@ -3841,7 +3856,7 @@ export default function AnalyticsPage() {
                       JOURNAL QUALITY
                   ===================================== */}
 
-                  <section>
+                  <section id="journal" className="scroll-mt-28">
 
                     <SectionHeading
                       eyebrow="Journal quality"

@@ -13,10 +13,14 @@ import {
 import Link from "next/link";
 
 import Sidebar from "@/components/Sidebar";
+import SetupTrackingButton from "@/components/alerts/SetupTrackingButton";
 import PageHeader from "@/components/layout/PageHeader";
 import Card from "@/components/ui/Card";
 import MetricCard from "@/components/ui/MetricCard";
 import StatusBadge from "@/components/ui/StatusBadge";
+import PageSectionNav from "@/components/ui/PageSectionNav";
+
+import useAlerts from "@/hooks/alerts/useAlerts";
 
 import { api } from "@/lib/api";
 
@@ -28,6 +32,13 @@ import { api } from "@/lib/api";
 type ScannerMode =
   | "balanced"
   | "aggressive";
+
+
+type ActionFilter =
+  | "all"
+  | "potential-entry"
+  | "watch"
+  | "wait";
 
 
 type ScannerIndicators = {
@@ -125,6 +136,11 @@ type ScannerCandidate = {
 
   rank_score: number;
 
+  ml_rank: number | null;
+  ml_percentile: number | null;
+  ml_raw_score: number | null;
+  ml_universe_size: number | null;
+
   intraday_trend: string;
 
   action_state: string;
@@ -189,6 +205,20 @@ type ScannerScanResponse = {
   matched: number;
 
   minimum_score: number;
+
+  ml_status: string;
+
+  ml_model:
+    string | null;
+
+  ml_model_version:
+    string | null;
+
+  ml_universe_size:
+    number | null;
+
+  ml_error:
+    string | null;
 
   candidates:
     ScannerCandidate[];
@@ -469,6 +499,22 @@ function normalizeCandidate(
       candidate.rank_score
       ?? candidate.opportunity_score
       ?? 50,
+
+    ml_rank:
+      candidate.ml_rank
+      ?? null,
+
+    ml_percentile:
+      candidate.ml_percentile
+      ?? null,
+
+    ml_raw_score:
+      candidate.ml_raw_score
+      ?? null,
+
+    ml_universe_size:
+      candidate.ml_universe_size
+      ?? null,
 
     intraday_trend:
       candidate.intraday_trend
@@ -861,11 +907,68 @@ function getActionTone(
 }
 
 
+function getActionFilterLabel(
+  filter:
+    ActionFilter,
+) {
+  if (
+    filter
+    === "potential-entry"
+  ) {
+    return "Potential entries";
+  }
+
+  if (
+    filter
+    === "watch"
+  ) {
+    return "Watch";
+  }
+
+  if (
+    filter
+    === "wait"
+  ) {
+    return "Wait";
+  }
+
+  return "All results";
+}
+
+
 /* =========================================================
    PAGE
 ========================================================= */
 
+const SCANNER_SECTIONS = [
+  {
+    id: "scanner-controls",
+    label: "Controls",
+  },
+  {
+    id: "scanner-overview",
+    label: "Overview",
+  },
+  {
+    id: "scanner-rankings",
+    label: "Rankings",
+  },
+  {
+    id: "scanner-shortlist",
+    label: "Shortlist",
+  },
+];
+
+
 export default function ScannerPage() {
+  const {
+    alerts,
+    saving: alertSaving,
+    createAlert,
+    deleteAlert,
+  } = useAlerts();
+
+
   const [
     mode,
     setMode,
@@ -983,6 +1086,16 @@ export default function ScannerPage() {
 
 
   const [
+    actionFilter,
+    setActionFilter,
+  ] = useState<
+    ActionFilter
+  >(
+    "all",
+  );
+
+
+  const [
     expandedSymbol,
     setExpandedSymbol,
   ] = useState<
@@ -1052,6 +1165,11 @@ export default function ScannerPage() {
 
         setExpandedSymbol(
           null,
+        );
+
+
+        setActionFilter(
+          "all",
         );
       },
       [],
@@ -1323,7 +1441,7 @@ export default function ScannerPage() {
 
 
   /* =======================================================
-     SEARCH FILTER
+     RESULT FILTERS
   ======================================================= */
 
   const filteredResults =
@@ -1335,18 +1453,56 @@ export default function ScannerPage() {
             .toLowerCase();
 
 
-        if (
-          !query
-        ) {
-          return results;
-        }
-
-
         return results.filter(
           (
             result,
-          ) =>
-            [
+          ) => {
+            const action =
+              result.action_state
+                .toLowerCase();
+
+
+            const matchesAction =
+              actionFilter
+                === "all"
+              || (
+                actionFilter
+                  === "potential-entry"
+                && action.includes(
+                  "potential entry",
+                )
+              )
+              || (
+                actionFilter
+                  === "watch"
+                && action.includes(
+                  "watch",
+                )
+              )
+              || (
+                actionFilter
+                  === "wait"
+                && action.includes(
+                  "wait",
+                )
+              );
+
+
+            if (
+              !matchesAction
+            ) {
+              return false;
+            }
+
+
+            if (
+              !query
+            ) {
+              return true;
+            }
+
+
+            return [
               result.symbol,
               result.rating,
               result.trend,
@@ -1357,9 +1513,9 @@ export default function ScannerPage() {
               result.secondary_horizon,
               result.trade_duration,
               result.target_source
-              ?? "",
+                ?? "",
               result.invalidation_source
-              ?? "",
+                ?? "",
               ...result.reasons,
               ...result.warnings,
             ]
@@ -1369,12 +1525,14 @@ export default function ScannerPage() {
               .toLowerCase()
               .includes(
                 query,
-              ),
+              );
+          },
         );
       },
       [
         results,
         search,
+        actionFilter,
       ],
     );
 
@@ -1454,6 +1612,31 @@ export default function ScannerPage() {
         results,
       ],
     );
+
+
+  /* =======================================================
+     FILTER HANDLER
+  ======================================================= */
+
+  function toggleActionFilter(
+    filter:
+      ActionFilter,
+  ) {
+    setActionFilter(
+      (
+        current,
+      ) =>
+        current
+        === filter
+          ? "all"
+          : filter,
+    );
+
+
+    setExpandedSymbol(
+      null,
+    );
+  }
 
 
   /* =======================================================
@@ -1770,6 +1953,11 @@ export default function ScannerPage() {
           />
 
 
+          <PageSectionNav
+            sections={SCANNER_SECTIONS}
+          />
+
+
           <div className="space-y-8">
 
             {/* ===========================================
@@ -1965,7 +2153,10 @@ export default function ScannerPage() {
                 SCAN CONTROLS
             =========================================== */}
 
-            <section>
+            <section
+              id="scanner-controls"
+              className="scroll-mt-24"
+            >
 
               <SectionHeading
                 eyebrow="Scan controls"
@@ -2161,11 +2352,15 @@ export default function ScannerPage() {
                 SUMMARY METRICS
             =========================================== */}
 
-            <section>
+            <section
+              id="scanner-overview"
+              className="scroll-mt-24"
+            >
 
               <SectionHeading
                 eyebrow="Snapshot"
                 title="Scanner overview"
+                description="Select Potential entries, Watch or Wait to instantly filter the current scanner results."
               />
 
 
@@ -2209,49 +2404,130 @@ export default function ScannerPage() {
                 />
 
 
-                <MetricCard
-                  label="Potential entries"
+                <button
+                  type="button"
 
-                  value={
-                    <span className="text-emerald-400">
-                      {
-                        summary.entries
-                      }
-                    </span>
+                  onClick={() =>
+                    toggleActionFilter(
+                      "potential-entry",
+                    )
                   }
 
-                  detail="Strongest current setups"
-                />
-
-
-                <MetricCard
-                  label="Watch"
-
-                  value={
-                    <span className="text-blue-400">
-                      {
-                        summary.watches
-                      }
-                    </span>
+                  aria-pressed={
+                    actionFilter
+                    === "potential-entry"
                   }
 
-                  detail="Needs confirmation"
-                />
+                  className={`rounded-2xl text-left transition-all ${
+                    actionFilter
+                    === "potential-entry"
+                      ? "ring-2 ring-emerald-500/70 ring-offset-2 ring-offset-black"
+                      : "hover:-translate-y-0.5"
+                  }`}
+                >
+                  <MetricCard
+                    label="Potential entries"
+
+                    value={
+                      <span className="text-emerald-400">
+                        {
+                          summary.entries
+                        }
+                      </span>
+                    }
+
+                    detail={
+                      actionFilter
+                      === "potential-entry"
+                        ? "Showing potential entries"
+                        : "Click to filter"
+                    }
+                  />
+                </button>
 
 
-                <MetricCard
-                  label="Wait"
+                <button
+                  type="button"
 
-                  value={
-                    <span className="text-amber-400">
-                      {
-                        summary.waits
-                      }
-                    </span>
+                  onClick={() =>
+                    toggleActionFilter(
+                      "watch",
+                    )
                   }
 
-                  detail="Conditions not aligned"
-                />
+                  aria-pressed={
+                    actionFilter
+                    === "watch"
+                  }
+
+                  className={`rounded-2xl text-left transition-all ${
+                    actionFilter
+                    === "watch"
+                      ? "ring-2 ring-blue-500/70 ring-offset-2 ring-offset-black"
+                      : "hover:-translate-y-0.5"
+                  }`}
+                >
+                  <MetricCard
+                    label="Watch"
+
+                    value={
+                      <span className="text-blue-400">
+                        {
+                          summary.watches
+                        }
+                      </span>
+                    }
+
+                    detail={
+                      actionFilter
+                      === "watch"
+                        ? "Showing watch setups"
+                        : "Click to filter"
+                    }
+                  />
+                </button>
+
+
+                <button
+                  type="button"
+
+                  onClick={() =>
+                    toggleActionFilter(
+                      "wait",
+                    )
+                  }
+
+                  aria-pressed={
+                    actionFilter
+                    === "wait"
+                  }
+
+                  className={`rounded-2xl text-left transition-all ${
+                    actionFilter
+                    === "wait"
+                      ? "ring-2 ring-amber-500/70 ring-offset-2 ring-offset-black"
+                      : "hover:-translate-y-0.5"
+                  }`}
+                >
+                  <MetricCard
+                    label="Wait"
+
+                    value={
+                      <span className="text-amber-400">
+                        {
+                          summary.waits
+                        }
+                      </span>
+                    }
+
+                    detail={
+                      actionFilter
+                      === "wait"
+                        ? "Showing wait setups"
+                        : "Click to filter"
+                    }
+                  />
+                </button>
 
 
                 <MetricCard
@@ -2289,7 +2565,10 @@ export default function ScannerPage() {
                 RANKED TABLE
             =========================================== */}
 
-            <section>
+            <section
+              id="scanner-rankings"
+              className="scroll-mt-24"
+            >
 
               <SectionHeading
                 eyebrow="Rankings"
@@ -2328,6 +2607,50 @@ export default function ScannerPage() {
                       >
                         {scanInfo.matched} matched
                       </StatusBadge>
+                    )}
+
+
+                    {actionFilter
+                    !== "all"
+                    && (
+                      <>
+                        <StatusBadge
+                          tone={
+                            actionFilter
+                            === "potential-entry"
+                              ? "positive"
+                              : actionFilter
+                                === "watch"
+                                ? "info"
+                                : "warning"
+                          }
+                        >
+                          {
+                            getActionFilterLabel(
+                              actionFilter,
+                            )
+                          }
+                          {" · "}
+                          {
+                            filteredResults.length
+                          }
+                        </StatusBadge>
+
+
+                        <button
+                          type="button"
+
+                          onClick={() =>
+                            setActionFilter(
+                              "all",
+                            )
+                          }
+
+                          className="rounded-lg border border-zinc-800 bg-black px-3 py-1.5 text-xs font-medium text-zinc-400 transition hover:border-zinc-700 hover:bg-zinc-900 hover:text-white"
+                        >
+                          Clear filter ×
+                        </button>
+                      </>
                     )}
 
                   </div>
@@ -2378,6 +2701,8 @@ export default function ScannerPage() {
                       <p className="mt-4 font-medium text-zinc-300">
                         {
                           search.trim()
+                          || actionFilter
+                            !== "all"
                             ? "No matching results"
                             : "No scanner results yet"
                         }
@@ -2386,22 +2711,51 @@ export default function ScannerPage() {
 
                       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-600">
                         {
-                          search.trim()
-                            ? "Try another symbol, horizon, action state or risk level."
+                          actionFilter
+                          !== "all"
+                            ? `There are no ${getActionFilterLabel(
+                                actionFilter,
+                              ).toLowerCase()} matching the current search. Clear the filter or select another category.`
 
-                            : backgroundRunning
-                              ? "The scanner is analyzing daily and intraday market data."
+                            : search.trim()
+                              ? "Try another symbol, horizon, action state or risk level."
 
-                              : "Run a balanced or aggressive market scan to rank opportunities."
+                              : backgroundRunning
+                                ? "The scanner is analyzing daily and intraday market data."
+
+                                : "Run a balanced or aggressive market scan to rank opportunities."
                         }
                       </p>
+
+
+                      {actionFilter
+                      !== "all"
+                      && (
+                        <button
+                          type="button"
+
+                          onClick={() => {
+                            setActionFilter(
+                              "all",
+                            );
+
+                            setSearch(
+                              "",
+                            );
+                          }}
+
+                          className="mt-5 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition hover:border-zinc-700 hover:bg-zinc-800"
+                        >
+                          Show all results
+                        </button>
+                      )}
 
                     </div>
 
                   ) : (
                     <div className="overflow-x-auto">
 
-                      <table className="w-full min-w-[1760px] text-left">
+                      <table className="w-full min-w-[1900px] text-left">
 
                         <thead className="border-b border-zinc-900 bg-black/40 text-[10px] font-semibold uppercase tracking-[0.13em] text-zinc-700">
 
@@ -2421,6 +2775,10 @@ export default function ScannerPage() {
 
                             <th className="px-5 py-4">
                               Opportunity
+                            </th>
+
+                            <th className="px-5 py-4">
+                              ML Rank
                             </th>
 
                             <th className="px-5 py-4">
@@ -2453,6 +2811,10 @@ export default function ScannerPage() {
 
                             <th className="px-5 py-4">
                               Action
+                            </th>
+
+                            <th className="px-5 py-4">
+                              Track
                             </th>
 
                             <th className="px-5 py-4 text-right">
@@ -2548,6 +2910,46 @@ export default function ScannerPage() {
                                           result.opportunity_score
                                         }
                                       />
+
+                                    </td>
+
+
+                                    <td className="px-5 py-4">
+
+                                      {result.ml_rank !== null
+                                      && result.ml_universe_size !== null
+                                      ? (
+                                        <div className="min-w-[92px]">
+
+                                          <p className="text-sm font-semibold text-blue-400">
+                                            #{result.ml_rank}
+                                            <span className="ml-1 text-xs font-normal text-zinc-700">
+                                              / {result.ml_universe_size}
+                                            </span>
+                                          </p>
+
+                                          <p className="mt-1 text-[11px] text-zinc-600">
+                                            {
+                                              result.ml_percentile !== null
+                                                ? `${result.ml_percentile.toFixed(1)} percentile`
+                                                : "V7 ranked"
+                                            }
+                                          </p>
+
+                                        </div>
+                                      ) : (
+                                        <div className="min-w-[92px]">
+
+                                          <p className="text-sm text-zinc-700">
+                                            —
+                                          </p>
+
+                                          <p className="mt-1 text-[11px] text-zinc-800">
+                                            Not in V7
+                                          </p>
+
+                                        </div>
+                                      )}
 
                                     </td>
 
@@ -2699,6 +3101,29 @@ export default function ScannerPage() {
 
                                     <td className="px-5 py-4">
 
+                                      <SetupTrackingButton
+                                        symbol={
+                                          result.symbol
+                                        }
+                                        alerts={
+                                          alerts
+                                        }
+                                        saving={
+                                          alertSaving
+                                        }
+                                        onCreate={
+                                          createAlert
+                                        }
+                                        onDelete={
+                                          deleteAlert
+                                        }
+                                      />
+
+                                    </td>
+
+
+                                    <td className="px-5 py-4">
+
                                       <div className="flex justify-end gap-2">
 
                                         <button
@@ -2751,7 +3176,7 @@ export default function ScannerPage() {
 
                                       <td
                                         colSpan={
-                                          13
+                                          15
                                         }
 
                                         className="px-5 py-6"
@@ -2789,21 +3214,36 @@ export default function ScannerPage() {
                 TOP OPPORTUNITIES
             =========================================== */}
 
-            {results.length
+            {filteredResults.length
             > 0
             && (
-              <section>
+              <section
+                id="scanner-shortlist"
+                className="scroll-mt-24"
+              >
 
                 <SectionHeading
                   eyebrow="Shortlist"
-                  title="Highest-ranked setups"
-                  description="A faster view of the strongest opportunities based on your current scanner mode."
+                  title={
+                    actionFilter
+                    === "all"
+                      ? "Highest-ranked setups"
+                      : `${getActionFilterLabel(
+                          actionFilter,
+                        )} shortlist`
+                  }
+                  description={
+                    actionFilter
+                    === "all"
+                      ? "A faster view of the strongest opportunities based on your current scanner mode."
+                      : "The highest-ranked setups within your currently selected scanner filter."
+                  }
                 />
 
 
                 <div className="mt-4 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
 
-                  {results
+                  {filteredResults
                     .slice(
                       0,
                       6,
@@ -3220,7 +3660,7 @@ function ExpandedTradeDetails({
         <div className="mt-3 grid grid-cols-2 gap-3">
 
           <SmallMetric
-            label="Opportunity"
+            label="Technical"
 
             value={`${result.opportunity_score}/100`}
 
@@ -3228,6 +3668,26 @@ function ExpandedTradeDetails({
               getScoreClass(
                 result.opportunity_score,
               )
+            }
+          />
+
+
+          <SmallMetric
+            label="ML Opportunity"
+
+            value={
+              result.ml_rank !== null
+              && result.ml_universe_size !== null
+                ? `#${result.ml_rank} / ${result.ml_universe_size}`
+                : "—"
+            }
+
+            valueClass={
+              result.ml_percentile !== null
+                ? getScoreClass(
+                    result.ml_percentile,
+                  )
+                : "text-zinc-500"
             }
           />
 
@@ -3508,6 +3968,63 @@ function ScannerResultCard({
           result.trade_duration
         }
       </p>
+
+
+      {result.ml_rank !== null
+      && result.ml_universe_size !== null
+      && (
+        <div className="mt-4 rounded-xl border border-blue-950/80 bg-blue-950/15 px-4 py-3">
+
+          <div className="flex items-center justify-between gap-4">
+
+            <div>
+
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-500">
+                ML Opportunity
+              </p>
+
+
+              <p className="mt-1 text-sm font-semibold text-zinc-200">
+                #{result.ml_rank} of {result.ml_universe_size}
+              </p>
+
+            </div>
+
+
+            <div className="text-right">
+
+              <p
+                className={`text-lg font-semibold ${
+                  result.ml_percentile !== null
+                    ? getScoreClass(
+                        result.ml_percentile,
+                      )
+                    : "text-zinc-500"
+                }`}
+              >
+                {
+                  result.ml_percentile !== null
+                    ? `${result.ml_percentile.toFixed(1)}%`
+                    : "—"
+                }
+              </p>
+
+
+              <p className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-zinc-700">
+                Percentile
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <p className="mt-2 text-[11px] leading-5 text-zinc-600">
+            Relative 5-day opportunity rank across the validated ML universe.
+          </p>
+
+        </div>
+      )}
 
 
       <div className="mt-6 flex items-end justify-between gap-4">
