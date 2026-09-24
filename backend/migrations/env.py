@@ -29,6 +29,15 @@ database_url = os.getenv(
     "postgresql+psycopg://atrader:atrader_dev_password@localhost:5432/atrader",
 )
 
+# Railway provides postgresql:// URLs. Explicitly use psycopg 3,
+# which is the PostgreSQL driver used by A-Trader.
+if database_url.startswith("postgresql://"):
+    database_url = database_url.replace(
+        "postgresql://",
+        "postgresql+psycopg://",
+        1,
+    )
+
 config.set_main_option("sqlalchemy.url", database_url)
 
 target_metadata = SQLModel.metadata
