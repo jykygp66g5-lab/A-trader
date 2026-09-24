@@ -29,12 +29,12 @@ database_url = os.getenv(
     "postgresql+psycopg://atrader:atrader_dev_password@localhost:5432/atrader",
 )
 
-# Railway provides postgresql:// URLs. Explicitly use psycopg 3,
-# which is the PostgreSQL driver used by A-Trader.
+# Railway provides postgresql:// URLs. Explicitly use psycopg2,
+# which is the PostgreSQL driver installed by backend/requirements.txt.
 if database_url.startswith("postgresql://"):
     database_url = database_url.replace(
         "postgresql://",
-        "postgresql+psycopg://",
+        "postgresql+psycopg2://",
         1,
     )
 
