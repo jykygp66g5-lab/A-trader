@@ -131,6 +131,8 @@ def create_alert_notification(
     session: Session,
     alert: Alert,
     trigger_value: float | None = None,
+    commit: bool = True,
+    send_push: bool = True,
 ) -> Notification:
     if alert.id is None:
         raise ValueError(
@@ -158,26 +160,27 @@ def create_alert_notification(
         ),
     )
 
-    # The in-app notification is the source of truth.
-    # Save it before attempting Web Push.
     session.add(notification)
-    session.commit()
-    session.refresh(notification)
 
-    # Web Push is an additional delivery channel.
-    # send_push_to_user handles push failures internally,
-    # so a failed device notification cannot erase the
-    # already-created in-app notification.
-    send_push_to_user(
-        session=session,
-        user_id=notification.user_id,
-        title=notification.title,
-        message=notification.message,
-        url=notification.target_url,
-        tag=(
-            f"a-trader-notification-"
-            f"{notification.id}"
-        ),
-    )
+    if commit:
+        session.commit()
+        session.refresh(notification)
+    else:
+        # Allocate the notification ID without committing
+        # the surrounding alert-engine transaction.
+        session.flush()
+
+    if send_push:
+        send_push_to_user(
+            session=session,
+            user_id=notification.user_id,
+            title=notification.title,
+            message=notification.message,
+            url=notification.target_url,
+            tag=(
+                f"a-trader-notification-"
+                f"{notification.id}"
+            ),
+        )
 
     return notification

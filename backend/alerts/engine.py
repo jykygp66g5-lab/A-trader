@@ -159,12 +159,14 @@ def process_lightweight_alert(
         if can_alert_trigger(
             alert=alert,
         ):
-            create_alert_notification(
+            notification = create_alert_notification(
                 session=session,
                 alert=alert,
                 trigger_value=(
                     result.observed_value
                 ),
+                commit=False,
+                send_push=False,
             )
 
             record_alert_trigger(
@@ -172,6 +174,23 @@ def process_lightweight_alert(
                 alert=alert,
                 observed_value=(
                     result.observed_value
+                ),
+                commit=False,
+            )
+
+            session.commit()
+
+            from .push_service import send_push_to_user
+
+            send_push_to_user(
+                session=session,
+                user_id=notification.user_id,
+                title=notification.title,
+                message=notification.message,
+                url=notification.target_url,
+                tag=(
+                    f"a-trader-notification-"
+                    f"{notification.id}"
                 ),
             )
 
@@ -221,16 +240,35 @@ def process_setup_alert(
         if can_alert_trigger(
             alert=alert,
         ):
-            create_alert_notification(
+            notification = create_alert_notification(
                 session=session,
                 alert=alert,
                 trigger_value=None,
+                commit=False,
+                send_push=False,
             )
 
             record_alert_trigger(
                 session=session,
                 alert=alert,
                 observed_state=current_state,
+                commit=False,
+            )
+
+            session.commit()
+
+            from .push_service import send_push_to_user
+
+            send_push_to_user(
+                session=session,
+                user_id=notification.user_id,
+                title=notification.title,
+                message=notification.message,
+                url=notification.target_url,
+                tag=(
+                    f"a-trader-notification-"
+                    f"{notification.id}"
+                ),
             )
 
             return True

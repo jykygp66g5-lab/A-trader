@@ -412,6 +412,7 @@ def record_alert_trigger(
     alert: Alert,
     observed_value: float | None = None,
     observed_state: str | None = None,
+    commit: bool = True,
 ) -> Alert:
     now = utc_now()
 
@@ -442,11 +443,14 @@ def record_alert_trigger(
         alert,
     )
 
-    session.commit()
+    if commit:
+        session.commit()
 
-    session.refresh(
-        alert,
-    )
+        session.refresh(
+            alert,
+        )
+    else:
+        session.flush()
 
     return alert
 
