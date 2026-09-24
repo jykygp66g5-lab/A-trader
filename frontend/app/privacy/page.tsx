@@ -53,7 +53,7 @@ export default function PrivacyPage() {
         </Link>
 
         <header className="border-b border-white/10 pb-10">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-400">
+          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
             A-Trader Legal
           </p>
 
@@ -84,7 +84,7 @@ export default function PrivacyPage() {
                   <a
                     key={number}
                     href={`#section-${number}`}
-                    className="block text-xs leading-5 text-slate-500 transition hover:text-emerald-400"
+                    className="block text-xs leading-5 text-slate-500 transition hover:text-violet-400"
                   >
                     {number}. {title}
                   </a>
@@ -991,14 +991,14 @@ export default function PrivacyPage() {
                 This Privacy Policy should be read together with the{" "}
                 <Link
                   href="/terms"
-                  className="text-emerald-400 hover:text-emerald-300"
+                  className="text-violet-400 hover:text-violet-300"
                 >
                   Terms of Service
                 </Link>{" "}
                 and{" "}
                 <Link
                   href="/risk-disclosure"
-                  className="text-emerald-400 hover:text-emerald-300"
+                  className="text-violet-400 hover:text-violet-300"
                 >
                   Financial Risk Disclosure
                 </Link>

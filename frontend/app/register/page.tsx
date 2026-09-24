@@ -156,7 +156,7 @@ export default function RegisterPage() {
             A Trader
           </Link>
 
-          <p className="mt-2 text-sm text-emerald-400">
+          <p className="mt-2 text-sm text-violet-400">
             Where a Trader is Built
           </p>
 
@@ -191,7 +191,7 @@ export default function RegisterPage() {
                 setName(event.target.value)
               }
               placeholder="Your name"
-              className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-emerald-400"
+              className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-violet-400"
             />
           </label>
 
@@ -209,7 +209,7 @@ export default function RegisterPage() {
                 setEmail(event.target.value)
               }
               placeholder="you@example.com"
-              className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-emerald-400"
+              className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-violet-400"
             />
           </label>
 
@@ -228,7 +228,7 @@ export default function RegisterPage() {
                 setPassword(event.target.value)
               }
               placeholder="At least 8 characters"
-              className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-emerald-400"
+              className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-violet-400"
             />
           </label>
 
@@ -247,7 +247,7 @@ export default function RegisterPage() {
                 setConfirmPassword(event.target.value)
               }
               placeholder="Repeat your password"
-              className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-emerald-400"
+              className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-violet-400"
             />
           </label>
 
@@ -259,7 +259,7 @@ export default function RegisterPage() {
                 onChange={(event) =>
                   setAgeConfirmed(event.target.checked)
                 }
-                className="mt-1 h-4 w-4 shrink-0 accent-emerald-400"
+                className="mt-1 h-4 w-4 shrink-0 accent-violet-400"
               />
 
               <span className="text-sm leading-6 text-zinc-300">
@@ -279,7 +279,7 @@ export default function RegisterPage() {
                       event.target.checked,
                     )
                   }
-                  className="mt-1 h-4 w-4 shrink-0 accent-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="mt-1 h-4 w-4 shrink-0 accent-violet-400 disabled:cursor-not-allowed disabled:opacity-40"
                 />
 
                 <span className="text-sm leading-6 text-zinc-300">
@@ -288,7 +288,7 @@ export default function RegisterPage() {
                     href="/terms"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium text-emerald-400 hover:text-emerald-300"
+                    className="font-medium text-violet-400 hover:text-violet-300"
                     onClick={() => {
                       setTermsOpened(true);
                       setError("");
@@ -301,7 +301,7 @@ export default function RegisterPage() {
                     href="/privacy"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium text-emerald-400 hover:text-emerald-300"
+                    className="font-medium text-violet-400 hover:text-violet-300"
                     onClick={() => {
                       setPrivacyOpened(true);
                       setError("");
@@ -318,7 +318,7 @@ export default function RegisterPage() {
                   <p
                     className={
                       termsOpened
-                        ? "text-emerald-400"
+                        ? "text-violet-400"
                         : "text-zinc-500"
                     }
                   >
@@ -329,7 +329,7 @@ export default function RegisterPage() {
                   <p
                     className={
                       privacyOpened
-                        ? "text-emerald-400"
+                        ? "text-violet-400"
                         : "text-zinc-500"
                     }
                   >
@@ -340,7 +340,7 @@ export default function RegisterPage() {
               )}
 
               {legalDocumentsOpened && (
-                <p className="ml-7 mt-3 text-xs text-emerald-400">
+                <p className="ml-7 mt-3 text-xs text-violet-400">
                   ✓ Legal documents opened — you may now
                   confirm your agreement.
                 </p>
@@ -351,7 +351,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={!canCreateAccount}
-            className="mt-6 w-full rounded-xl bg-emerald-400 px-5 py-3 font-semibold text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500 disabled:opacity-70"
+            className="mt-6 w-full rounded-xl bg-violet-400 px-5 py-3 font-semibold text-zinc-950 transition hover:bg-violet-300 disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-500 disabled:opacity-70"
           >
             {loading
               ? "Creating account..."
@@ -369,7 +369,7 @@ export default function RegisterPage() {
             Already have an account?{" "}
             <Link
               href="/login"
-              className="font-medium text-emerald-400 hover:text-emerald-300"
+              className="font-medium text-violet-400 hover:text-violet-300"
             >
               Sign in
             </Link>

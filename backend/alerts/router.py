@@ -1,3 +1,4 @@
+import os
 from typing import Callable
 
 from fastapi import (
@@ -452,6 +453,21 @@ def create_alerts_router(
             get_session,
         ),
     ):
+        if os.getenv(
+            "ENABLE_ALERT_ENGINE_ENDPOINT",
+            "",
+        ).lower() not in {
+            "1",
+            "true",
+            "yes",
+        }:
+            raise HTTPException(
+                status_code=(
+                    status.HTTP_404_NOT_FOUND
+                ),
+                detail="Not found.",
+            )
+
         if current_user.id is None:
             raise HTTPException(
                 status_code=(

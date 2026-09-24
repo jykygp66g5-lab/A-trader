@@ -232,6 +232,7 @@ export default function PageSectionNav({
           z-40
           hidden
           -translate-x-1/2
+          lg:ml-[136px]
           lg:block
           ${className}
         `}

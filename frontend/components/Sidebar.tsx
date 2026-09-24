@@ -629,7 +629,7 @@ export default function Sidebar({
 
       <div className="w-0 shrink-0 lg:hidden">
 
-        <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b border-zinc-900 bg-[#080808]/95 px-4 backdrop-blur-xl sm:px-6">
+        <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b border-zinc-900 bg-[#0D0C12]/95 px-4 backdrop-blur-xl sm:px-6">
 
           <Brand />
 
@@ -690,7 +690,7 @@ export default function Sidebar({
             />
 
 
-            <aside className="fixed inset-y-0 right-0 z-50 flex w-[min(88vw,340px)] flex-col border-l border-zinc-900 bg-[#080808] shadow-2xl">
+            <aside className="fixed inset-y-0 right-0 z-50 flex w-[min(88vw,340px)] flex-col border-l border-zinc-900 bg-[#0D0C12] shadow-2xl">
 
               <div className="flex h-16 items-center justify-between border-b border-zinc-900 px-4">
 
@@ -769,7 +769,7 @@ export default function Sidebar({
           DESKTOP SIDEBAR
       =================================================== */}
 
-      <aside className="sticky top-0 hidden h-screen w-[272px] shrink-0 border-r border-zinc-900 bg-[#080808] lg:flex lg:flex-col">
+      <aside className="sticky top-0 hidden h-screen w-[272px] shrink-0 border-r border-zinc-900 bg-[#0D0C12] lg:flex lg:flex-col">
 
         <div className="border-b border-zinc-900 px-5 py-5">
           <Brand />

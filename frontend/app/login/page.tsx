@@ -163,7 +163,7 @@ export default function LoginPage() {
           </Link>
 
 
-          <p className="mt-2 text-sm text-emerald-400">
+          <p className="mt-2 text-sm text-violet-400">
             Where a Trader is Built
           </p>
 
@@ -224,7 +224,7 @@ export default function LoginPage() {
 
               placeholder="you@example.com"
 
-              className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-emerald-400"
+              className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-violet-400"
             />
 
           </label>
@@ -258,7 +258,7 @@ export default function LoginPage() {
 
               placeholder="Enter your password"
 
-              className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-emerald-400"
+              className="mt-2 w-full rounded-xl border border-zinc-700 bg-black px-4 py-3 outline-none transition focus:border-violet-400"
             />
 
           </label>
@@ -271,7 +271,7 @@ export default function LoginPage() {
               loading
             }
 
-            className="mt-6 w-full rounded-xl bg-emerald-400 px-5 py-3 font-semibold text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-6 w-full rounded-xl bg-violet-400 px-5 py-3 font-semibold text-zinc-950 transition hover:bg-violet-300 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {
               loading
@@ -286,7 +286,7 @@ export default function LoginPage() {
 
             <Link
               href="/register"
-              className="font-medium text-emerald-400 hover:text-emerald-300"
+              className="font-medium text-violet-400 hover:text-violet-300"
             >
               Create one
             </Link>
