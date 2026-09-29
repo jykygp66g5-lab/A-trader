@@ -2,7 +2,9 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable
 
 import pandas as pd
-import yfinance as yf
+
+from market_data import download_market_data
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import SQLModel
 
@@ -287,7 +289,7 @@ def _fetch_previous_close(
     )
 
     try:
-        data = yf.download(
+        data = download_market_data(
             symbol,
             start=(
                 start_date
@@ -521,7 +523,7 @@ def create_replay_router(
                     )
                 )
 
-                data = yf.download(
+                data = download_market_data(
                     ticker_symbol,
                     start=(
                         fetch_start
@@ -554,7 +556,7 @@ def create_replay_router(
                     )
                 )
 
-                data = yf.download(
+                data = download_market_data(
                     ticker_symbol,
                     start=(
                         fetch_start
