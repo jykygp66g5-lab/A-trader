@@ -12,6 +12,15 @@ DATABASE_URL = os.getenv(
     "postgresql+psycopg://atrader:atrader_dev_password@localhost:5432/atrader",
 )
 
+# Railway provides postgresql:// URLs. Explicitly select
+# psycopg 3 so SQLAlchemy does not fall back to psycopg2.
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace(
+        "postgresql://",
+        "postgresql+psycopg://",
+        1,
+    )
+
 
 engine = create_engine(
     DATABASE_URL,
