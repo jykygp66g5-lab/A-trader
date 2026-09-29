@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from time import sleep
 from typing import Any
 
 import pandas as pd
@@ -13,6 +14,14 @@ REQUIRED_OHLCV_COLUMNS = [
     "Close",
     "Volume",
 ]
+
+
+MARKET_DATA_MAX_ATTEMPTS = 3
+
+MARKET_DATA_RETRY_DELAYS = (
+    0.5,
+    1.0,
+)
 
 
 def download_market_data(
@@ -56,17 +65,52 @@ def download_market_data(
     if end is not None:
         kwargs["end"] = end
 
-    data = yf.download(
-        **kwargs,
-    )
+    last_error: Exception | None = None
 
-    if not isinstance(data, pd.DataFrame):
-        raise TypeError(
-            "Market data provider returned an unexpected "
-            f"type: {type(data).__name__}."
-        )
+    for attempt in range(
+        1,
+        MARKET_DATA_MAX_ATTEMPTS + 1,
+    ):
+        try:
+            data = yf.download(
+                **kwargs,
+            )
 
-    return data
+            if not isinstance(
+                data,
+                pd.DataFrame,
+            ):
+                raise TypeError(
+                    "Market data provider returned an "
+                    "unexpected type: "
+                    f"{type(data).__name__}."
+                )
+
+            return data
+
+        except Exception as exc:
+            last_error = exc
+
+            if (
+                attempt
+                >= MARKET_DATA_MAX_ATTEMPTS
+            ):
+                break
+
+            delay = (
+                MARKET_DATA_RETRY_DELAYS[
+                    attempt - 1
+                ]
+            )
+
+            sleep(
+                delay,
+            )
+
+    raise RuntimeError(
+        "Market data download failed after "
+        f"{MARKET_DATA_MAX_ATTEMPTS} attempts."
+    ) from last_error
 
 
 def normalize_single_symbol_frame(
