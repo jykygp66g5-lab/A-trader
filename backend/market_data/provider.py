@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from datetime import datetime
 from threading import Lock
-from time import monotonic, sleep
+from time import monotonic, perf_counter, sleep
 from typing import Any
 
 import pandas as pd
@@ -25,6 +25,105 @@ MARKET_DATA_RETRY_DELAYS = (
     0.5,
     1.0,
 )
+
+
+# =========================================================
+# MARKET DATA OBSERVABILITY
+# =========================================================
+
+_market_data_metrics_lock = Lock()
+
+_market_data_metrics: dict[str, int | float] = {
+    "requests": 0,
+    "cache_hits": 0,
+    "cache_misses": 0,
+    "provider_calls": 0,
+    "provider_retries": 0,
+    "provider_failures": 0,
+    "empty_responses": 0,
+    "downloaded_rows": 0,
+    "provider_latency_seconds": 0.0,
+}
+
+
+def _increment_market_data_metric(
+    name: str,
+    amount: int | float = 1,
+) -> None:
+    with _market_data_metrics_lock:
+        _market_data_metrics[
+            name
+        ] += amount
+
+
+def get_market_data_metrics() -> dict[str, int | float]:
+    with _market_data_metrics_lock:
+        metrics = dict(
+            _market_data_metrics
+        )
+
+    requests = int(
+        metrics[
+            "requests"
+        ]
+    )
+
+    cache_hits = int(
+        metrics[
+            "cache_hits"
+        ]
+    )
+
+    provider_calls = int(
+        metrics[
+            "provider_calls"
+        ]
+    )
+
+    provider_latency = float(
+        metrics[
+            "provider_latency_seconds"
+        ]
+    )
+
+    metrics[
+        "cache_hit_rate"
+    ] = (
+        cache_hits / requests
+        if requests
+        else 0.0
+    )
+
+    metrics[
+        "average_provider_latency_seconds"
+    ] = (
+        provider_latency / provider_calls
+        if provider_calls
+        else 0.0
+    )
+
+    return metrics
+
+
+def reset_market_data_metrics() -> None:
+    with _market_data_metrics_lock:
+        for key in (
+            "requests",
+            "cache_hits",
+            "cache_misses",
+            "provider_calls",
+            "provider_retries",
+            "provider_failures",
+            "empty_responses",
+            "downloaded_rows",
+        ):
+            _market_data_metrics[
+                key
+            ] = 0
+
+        _market_data_metrics[
+            "provider_latency_seconds"
+        ] = 0.0
 
 
 # =========================================================
@@ -245,6 +344,10 @@ def download_market_data(
     later.
     """
 
+    _increment_market_data_metric(
+        "requests",
+    )
+
     cache_key = _market_data_cache_key(
         tickers=tickers,
         period=period,
@@ -272,7 +375,15 @@ def download_market_data(
     )
 
     if cached is not None:
+        _increment_market_data_metric(
+            "cache_hits",
+        )
+
         return cached
+
+    _increment_market_data_metric(
+        "cache_misses",
+    )
 
     kwargs: dict[str, Any] = {
         "tickers": tickers,
@@ -300,9 +411,27 @@ def download_market_data(
         MARKET_DATA_MAX_ATTEMPTS + 1,
     ):
         try:
-            data = yf.download(
-                **kwargs,
+            _increment_market_data_metric(
+                "provider_calls",
             )
+
+            provider_started = (
+                perf_counter()
+            )
+
+            try:
+                data = yf.download(
+                    **kwargs,
+                )
+
+            finally:
+                _increment_market_data_metric(
+                    "provider_latency_seconds",
+                    (
+                        perf_counter()
+                        - provider_started
+                    ),
+                )
 
             if not isinstance(
                 data,
@@ -312,6 +441,17 @@ def download_market_data(
                     "Market data provider returned an "
                     "unexpected type: "
                     f"{type(data).__name__}."
+                )
+
+            if data.empty:
+                _increment_market_data_metric(
+                    "empty_responses",
+                )
+
+            else:
+                _increment_market_data_metric(
+                    "downloaded_rows",
+                    len(data),
                 )
 
             _store_cached_market_data(
@@ -330,7 +470,15 @@ def download_market_data(
                 attempt
                 >= MARKET_DATA_MAX_ATTEMPTS
             ):
+                _increment_market_data_metric(
+                    "provider_failures",
+                )
+
                 break
+
+            _increment_market_data_metric(
+                "provider_retries",
+            )
 
             delay = (
                 MARKET_DATA_RETRY_DELAYS[
