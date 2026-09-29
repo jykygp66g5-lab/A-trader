@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
-import yfinance as yf
+
+from market_data import download_market_data
 
 
 SNAPSHOT_DIRECTORY = (
@@ -33,7 +34,7 @@ def download_daily_history(
         f"Downloading {symbol}..."
     )
 
-    data = yf.download(
+    data = download_market_data(
         symbol,
         period=period,
         interval="1d",
