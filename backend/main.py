@@ -15,7 +15,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 
-from database import create_db_and_tables
 
 from auth.router import create_auth_router
 from auth.service import create_current_user_dependency
@@ -25,8 +24,7 @@ from playbook.router import create_playbook_router
 from market.router import create_market_router
 from ai_coach.router import create_ai_coach_router
 
-# Import alert models so SQLModel registers the tables
-# before create_db_and_tables() runs.
+# Import alert models used by the application.
 from alerts.models import Alert, Notification
 from alerts.push_models import PushSubscription
 from alerts.push_router import create_push_router
@@ -103,7 +101,6 @@ get_current_user = create_current_user_dependency(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_db_and_tables()
     yield
 
 
