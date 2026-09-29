@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
+from market_data import download_market_data
 
 from .features import (
     FEATURE_COLUMNS,
@@ -218,7 +218,7 @@ def download_symbol_dataset(
             "Symbol cannot be empty."
         )
 
-    data = yf.download(
+    data = download_market_data(
         ticker,
         period=period,
         interval="1d",
@@ -438,7 +438,7 @@ def build_multi_symbol_v2_dataset(
         "Downloading SPY..."
     )
 
-    spy_data = yf.download(
+    spy_data = download_market_data(
         "SPY",
         period=period,
         interval="1d",
@@ -452,7 +452,7 @@ def build_multi_symbol_v2_dataset(
         "Downloading QQQ..."
     )
 
-    qqq_data = yf.download(
+    qqq_data = download_market_data(
         "QQQ",
         period=period,
         interval="1d",
@@ -487,7 +487,7 @@ def build_multi_symbol_v2_dataset(
                 f"Downloading {symbol}..."
             )
 
-            stock_data = yf.download(
+            stock_data = download_market_data(
                 symbol,
                 period=period,
                 interval="1d",
@@ -802,7 +802,7 @@ def build_multi_symbol_v2_relative_dataset(
         "Downloading SPY..."
     )
 
-    spy_data = yf.download(
+    spy_data = download_market_data(
         "SPY",
         period=period,
         interval="1d",
@@ -816,7 +816,7 @@ def build_multi_symbol_v2_relative_dataset(
         "Downloading QQQ..."
     )
 
-    qqq_data = yf.download(
+    qqq_data = download_market_data(
         "QQQ",
         period=period,
         interval="1d",
@@ -851,7 +851,7 @@ def build_multi_symbol_v2_relative_dataset(
                 f"Downloading {symbol}..."
             )
 
-            stock_data = yf.download(
+            stock_data = download_market_data(
                 symbol,
                 period=period,
                 interval="1d",
