@@ -6,7 +6,7 @@ from typing import Any, Callable, Literal
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
+from market_data import download_market_data
 
 from fastapi import (
     APIRouter,
@@ -1040,7 +1040,7 @@ def analyze_intraday(
     }
 
     try:
-        data = yf.download(
+        data = download_market_data(
             symbol,
 
             period="5d",
@@ -2754,7 +2754,7 @@ def analyze_scan_symbol(
     symbol: str,
     mode: ScannerMode = "balanced",
 ) -> ScannerCandidate:
-    daily_data = yf.download(
+    daily_data = download_market_data(
         symbol,
 
         period="1y",

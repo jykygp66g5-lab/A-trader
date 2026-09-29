@@ -7,6 +7,8 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from market_data import download_market_data
+
 from .v5 import add_cross_sectional_features
 
 
@@ -542,7 +544,6 @@ def build_live_v7_base_frame(
     are not themselves ranked as V7 opportunities.
     """
 
-    import yfinance as yf
 
     from .features import (
         build_v2_feature_frame,
@@ -569,7 +570,7 @@ def build_live_v7_base_frame(
         "Downloading live V7 market universe..."
     )
 
-    downloaded = yf.download(
+    downloaded = download_market_data(
         download_symbols,
         period=period,
         interval="1d",

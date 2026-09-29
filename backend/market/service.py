@@ -9,7 +9,8 @@ from datetime import (
 import math
 
 import pandas as pd
-import yfinance as yf
+
+from market_data import download_market_data
 
 from fastapi import (
     HTTPException,
@@ -266,7 +267,7 @@ def get_market_snapshot(
     # INTRADAY PRICE / VOLUME
     # -----------------------------------------------------
 
-    data = yf.download(
+    data = download_market_data(
         ticker_symbol,
         period="5d",
         interval="5m",
@@ -313,7 +314,7 @@ def get_market_snapshot(
     # DAILY PERCENT CHANGE
     # -----------------------------------------------------
 
-    daily_data = yf.download(
+    daily_data = download_market_data(
         ticker_symbol,
         period="5d",
         interval="1d",
@@ -413,7 +414,7 @@ def analyze_market_symbol(
         # DAILY MARKET DATA
         # -------------------------------------------------
 
-        data = yf.download(
+        data = download_market_data(
             ticker_symbol,
             period="1y",
             interval="1d",
@@ -1337,7 +1338,7 @@ def get_market_history_data(
         # DOWNLOAD
         # -------------------------------------------------
 
-        data = yf.download(
+        data = download_market_data(
             **download_kwargs,
         )
 
