@@ -32,6 +32,7 @@ from alerts.push_models import PushSubscription
 from alerts.push_router import create_push_router
 from alerts.router import create_alerts_router
 
+from market_data import get_market_data_metrics
 from replay import create_replay_router
 from scanner import create_scanner_router
 
@@ -190,6 +191,19 @@ app.include_router(
         get_current_user,
     ),
 )
+
+
+# =========================================================
+# MARKET DATA HEALTH
+# =========================================================
+
+@app.get("/health/market-data")
+def market_data_health():
+    return {
+        "status": "ok",
+        "provider": "yfinance",
+        "metrics": get_market_data_metrics(),
+    }
 
 
 # =========================================================
