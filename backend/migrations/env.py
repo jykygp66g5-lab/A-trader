@@ -16,6 +16,7 @@ from alerts.models import Alert, Notification
 from alerts.push_models import PushSubscription
 from trades.models import Trade
 from playbook.models import PlaybookSetup
+from watchlist.models import WatchlistItem
 
 
 config = context.config

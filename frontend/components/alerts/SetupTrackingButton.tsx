@@ -117,10 +117,10 @@ export default function SetupTrackingButton({
         disabled={busy}
         aria-pressed={isTracking}
         className={[
-          "inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold transition",
+          "inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition",
           isTracking
-            ? "border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/15"
-            : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-600 hover:bg-zinc-800",
+            ? "border-violet-500/30 bg-violet-500/[0.08] text-zinc-100 hover:bg-violet-500/[0.12]"
+            : "border-zinc-800 bg-zinc-950/70 text-zinc-300 hover:border-violet-500/25 hover:bg-violet-500/[0.05] hover:text-white",
           busy
             ? "cursor-not-allowed opacity-60"
             : "",

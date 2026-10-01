@@ -6,7 +6,6 @@ import {
   getActionTone,
   getRiskClass,
   getScoreClass,
-  getSignalTone,
 } from "@/lib/market/formatters";
 
 import type {
@@ -36,6 +35,16 @@ type MarketHeroProps = {
   onDeleteAlert: (
     alertId: number,
   ) => Promise<unknown>;
+
+  watchlisted: boolean;
+
+  watchlistLoading: boolean;
+
+  watchlistSaving: boolean;
+
+  onToggleWatchlist: (
+    symbol: string,
+  ) => Promise<void>;
 };
 
 
@@ -45,6 +54,10 @@ export default function MarketHero({
   alertSaving,
   onCreateAlert,
   onDeleteAlert,
+  watchlisted,
+  watchlistLoading,
+  watchlistSaving,
+  onToggleWatchlist,
 }: MarketHeroProps) {
   return (
     <Card>
@@ -53,58 +66,87 @@ export default function MarketHero({
 
         <div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3">
 
-            <p className="text-sm font-semibold text-zinc-300">
-              {
-                analysis.symbol
-              }
-            </p>
+            <div className="flex items-center gap-2">
 
-
-            <StatusBadge
-              tone={
-                getSignalTone(
-                  analysis.signal,
-                )
-              }
-            >
-              {
-                analysis.signal
-              }
-            </StatusBadge>
+              <p className="text-sm font-semibold text-zinc-300">
+                {
+                  analysis.symbol
+                }
+              </p>
 
 
-            <StatusBadge
-              tone={
-                getActionTone(
-                  analysis.action_state,
-                )
-              }
-            >
-              {
-                analysis.action_state
-              }
-            </StatusBadge>
+              <StatusBadge
+                tone={
+                  getActionTone(
+                    analysis.action_state,
+                  )
+                }
+                className="h-9 border-violet-500/25 bg-violet-500/[0.08] px-3.5 text-[12px] font-semibold text-zinc-100 shadow-[0_0_18px_rgba(139,92,246,0.06)]"
+                dot
+              >
+                {
+                  analysis.action_state
+                }
+              </StatusBadge>
+
+            </div>
 
 
-            <SetupTrackingButton
-              symbol={
-                analysis.symbol
-              }
-              alerts={
-                alerts
-              }
-              saving={
-                alertSaving
-              }
-              onCreate={
-                onCreateAlert
-              }
-              onDelete={
-                onDeleteAlert
-              }
-            />
+            <div className="flex flex-wrap items-start gap-2">
+
+              <SetupTrackingButton
+                symbol={
+                  analysis.symbol
+                }
+                alerts={
+                  alerts
+                }
+                saving={
+                  alertSaving
+                }
+                onCreate={
+                  onCreateAlert
+                }
+                onDelete={
+                  onDeleteAlert
+                }
+              />
+
+
+              <button
+                type="button"
+
+                disabled={
+                  watchlistLoading
+                  || watchlistSaving
+                }
+
+                onClick={() => {
+                  void onToggleWatchlist(
+                    analysis.symbol,
+                  );
+                }}
+
+                className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                  watchlisted
+                    ? "border-violet-500/30 bg-violet-500/[0.08] text-zinc-100 hover:bg-violet-500/[0.12]"
+                    : "border-zinc-800 bg-zinc-950/70 text-zinc-300 hover:border-violet-500/25 hover:bg-violet-500/[0.05] hover:text-white"
+                }`}
+              >
+                {
+                  watchlistLoading
+                    ? "Loading…"
+                    : watchlistSaving
+                      ? "Saving…"
+                      : watchlisted
+                        ? "★ Watchlisted"
+                        : "☆ Watchlist"
+                }
+              </button>
+
+            </div>
 
           </div>
 

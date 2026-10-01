@@ -1,31 +1,23 @@
 "use client";
 
 import Link from "next/link";
-
 import {
   useEffect,
   useMemo,
   useState,
 } from "react";
 
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-
 import Sidebar from "@/components/Sidebar";
-import PageHeader from "@/components/layout/PageHeader";
 import PageSectionNav from "@/components/ui/PageSectionNav";
-import Card from "@/components/ui/Card";
-import MetricCard from "@/components/ui/MetricCard";
-import StatusBadge from "@/components/ui/StatusBadge";
-
 import { api } from "@/lib/api";
+
+import {
+  getWatchlist,
+} from "@/lib/watchlist/api";
+
+import type {
+  WatchlistItem,
+} from "@/lib/watchlist/types";
 
 
 type Trade = {
@@ -54,26 +46,119 @@ type User = {
 };
 
 
-type Tone =
-  | "positive"
-  | "negative"
-  | "neutral";
-
-
-type DateRange =
-  | "7D"
-  | "30D"
-  | "3M"
-  | "1Y"
-  | "ALL";
-
-
-type DashboardStat = {
-  label: string;
-  value: string;
-  detail: string;
-  tone: Tone;
+type TradeResult = {
+  trade: Trade;
+  pnl: number;
 };
+
+
+type DashboardMarket = {
+  symbol: string;
+
+  price: number;
+  previous_close: number;
+  change_percent: number;
+
+  signal: string;
+  risk: string;
+
+  trend_score: number;
+  opportunity_score: number;
+
+  action_state: string;
+  trade_horizon: string;
+
+  performance_5d_percent: number;
+  performance_20d_percent: number;
+
+  rsi: number;
+};
+
+
+type ScannerCandidate = {
+  symbol: string;
+  price: number;
+  previous_close: number;
+  change_percent: number;
+
+  opportunity_score: number;
+  rank_score: number;
+
+  action_state: string;
+
+  trade_horizon: string;
+  trade_duration: string;
+
+  reward_risk_ratio: number;
+  risk_level: string;
+
+  potential_upside_percent: number;
+  potential_downside_percent: number;
+
+  ml_rank: number | null;
+  ml_percentile: number | null;
+
+  reasons: string[];
+  warnings: string[];
+};
+
+
+type ScannerScanResponse = {
+  generated_at: string;
+
+  mode:
+    | "conservative"
+    | "balanced"
+    | "aggressive";
+
+  universe_size: number;
+  scanned: number;
+  matched: number;
+  minimum_score: number;
+
+  ml_status: string;
+  ml_model: string | null;
+  ml_model_version: string | null;
+  ml_universe_size: number | null;
+  ml_error: string | null;
+
+  candidates:
+    ScannerCandidate[];
+
+  failed: {
+    symbol: string;
+    reason: string;
+  }[];
+
+  disclaimer: string;
+};
+
+
+const DASHBOARD_MARKETS = [
+  "SPY",
+  "QQQ",
+  "DIA",
+] as const;
+
+
+const DASHBOARD_SECTIONS = [
+  {
+    id: "today",
+    label: "Today",
+  },
+  {
+    id: "markets",
+    label: "Markets",
+  },
+  {
+    id: "opportunities",
+    label: "Opportunities",
+  },
+  {
+    id: "trading",
+    label: "Your Trading",
+  },
+] as const;
 
 
 /* =========================================================
@@ -105,279 +190,159 @@ function formatMoney(
   return new Intl.NumberFormat(
     "en-CA",
     {
-      style:
-        "currency",
-
-      currency:
-        "CAD",
-
-      minimumFractionDigits:
-        2,
+      style: "currency",
+      currency: "CAD",
+      minimumFractionDigits: 2,
     },
-  ).format(
-    value,
-  );
+  ).format(value);
 }
 
 
-function getStrategyName(
-  trade: Trade,
-) {
-  if (
-    trade.strategy === "Custom"
-    && trade.custom_strategy
-      ?.trim()
-  ) {
-    return trade
-      .custom_strategy
-      .trim();
+function getGreeting() {
+  const hour =
+    new Date()
+      .getHours();
+
+  if (hour < 12) {
+    return "Good morning";
   }
 
-  return (
-    trade.strategy
-    || "Unspecified"
-  );
-}
-
-
-function toneFromNumber(
-  value: number,
-): Tone {
-  if (
-    value > 0
-  ) {
-    return "positive";
+  if (hour < 18) {
+    return "Good afternoon";
   }
 
-  if (
-    value < 0
-  ) {
-    return "negative";
-  }
-
-  return "neutral";
-}
-
-
-function getToneClass(
-  tone: Tone,
-) {
-  if (
-    tone === "positive"
-  ) {
-    return "text-emerald-400";
-  }
-
-  if (
-    tone === "negative"
-  ) {
-    return "text-red-400";
-  }
-
-  return "text-white";
-}
-
-
-function filterByDateRange(
-  trades: Trade[],
-  range: DateRange,
-) {
-  if (
-    range === "ALL"
-  ) {
-    return trades;
-  }
-
-  const now =
-    new Date();
-
-  const start =
-    new Date(
-      now,
-    );
-
-
-  if (
-    range === "7D"
-  ) {
-    start.setDate(
-      now.getDate()
-      - 7,
-    );
-  }
-
-
-  if (
-    range === "30D"
-  ) {
-    start.setDate(
-      now.getDate()
-      - 30,
-    );
-  }
-
-
-  if (
-    range === "3M"
-  ) {
-    start.setMonth(
-      now.getMonth()
-      - 3,
-    );
-  }
-
-
-  if (
-    range === "1Y"
-  ) {
-    start.setFullYear(
-      now.getFullYear()
-      - 1,
-    );
-  }
-
-
-  return trades.filter(
-    (
-      trade,
-    ) =>
-      new Date(
-        trade.created_at,
-      )
-      >= start,
-  );
+  return "Good evening";
 }
 
 
 /* =========================================================
-   PAGE
+   DASHBOARD
 ========================================================= */
-
-
-
-const DASHBOARD_SECTIONS = [
-  { id: "performance", label: "Performance" },
-  { id: "equity", label: "Equity" },
-  { id: "execution", label: "Execution" },
-  { id: "strategy", label: "Strategy" },
-  { id: "recent", label: "Recent" },
-] as const;
 
 export default function Dashboard() {
   const [
     trades,
     setTrades,
-  ] = useState<
-    Trade[]
-  >(
-    [],
-  );
-
+  ] = useState<Trade[]>([]);
 
   const [
     user,
     setUser,
+  ] = useState<User | null>(
+    null,
+  );
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+
+  const [
+    scannerResult,
+    setScannerResult,
   ] = useState<
-    User | null
+    ScannerScanResponse
+    | null
   >(
     null,
   );
 
 
   const [
-    loading,
-    setLoading,
+    scannerLoading,
+    setScannerLoading,
+  ] = useState(true);
+
+
+  const [
+    marketOverview,
+    setMarketOverview,
+  ] = useState<
+    DashboardMarket[]
+  >(
+    [],
+  );
+
+
+  const [
+    marketLoading,
+    setMarketLoading,
   ] = useState(
     true,
   );
 
 
   const [
-    error,
-    setError,
-  ] = useState(
-    "",
+    watchlist,
+    setWatchlist,
+  ] = useState<
+    WatchlistItem[]
+  >(
+    [],
   );
 
 
   const [
-    dateRange,
-    setDateRange,
+    radarMarkets,
+    setRadarMarkets,
   ] = useState<
-    DateRange
+    DashboardMarket[]
   >(
-    "ALL",
+    [],
   );
 
 
-  /* =======================================================
-     LOAD DATA
-  ======================================================= */
+  const [
+    radarLoading,
+    setRadarLoading,
+  ] = useState(
+    true,
+  );
+
 
   useEffect(
     () => {
       async function loadDashboard() {
         try {
-          setLoading(
-            true,
-          );
-
-          setError(
-            "",
-          );
-
+          setLoading(true);
+          setError("");
 
           const [
             tradesResponse,
             userResponse,
           ] =
             await Promise.all([
-              api(
-                "/trades",
-              ),
-
-              api(
-                "/auth/me",
-              ),
+              api("/trades"),
+              api("/auth/me"),
             ]);
 
-
-          if (
-            !tradesResponse.ok
-          ) {
+          if (!tradesResponse.ok) {
             throw new Error(
-              "Could not load dashboard data.",
+              "Could not load your trading data.",
             );
           }
-
 
           const tradeData:
             Trade[] =
-            await tradesResponse
-              .json();
+            await tradesResponse.json();
 
+          setTrades(tradeData);
 
-          setTrades(
-            tradeData,
-          );
-
-
-          if (
-            userResponse.ok
-          ) {
+          if (userResponse.ok) {
             const userData:
               User =
-              await userResponse
-                .json();
+              await userResponse.json();
 
-            setUser(
-              userData,
-            );
+            setUser(userData);
           }
 
-        } catch (
-          err
-        ) {
+        } catch (err) {
           setError(
             err instanceof Error
               ? err.message
@@ -385,12 +350,9 @@ export default function Dashboard() {
           );
 
         } finally {
-          setLoading(
-            false,
-          );
+          setLoading(false);
         }
       }
-
 
       void loadDashboard();
     },
@@ -398,94 +360,301 @@ export default function Dashboard() {
   );
 
 
+  useEffect(
+    () => {
+      async function loadScannerResult() {
+        try {
+          setScannerLoading(
+            true,
+          );
+
+          const response =
+            await api(
+              "/scanner/result",
+            );
+
+
+          if (
+            response.status
+            === 404
+            || response.status
+            === 409
+          ) {
+            return;
+          }
+
+
+          if (!response.ok) {
+            return;
+          }
+
+
+          const data:
+            ScannerScanResponse =
+            await response.json();
+
+
+          setScannerResult(
+            data,
+          );
+
+        } catch {
+          // Scanner information is supplementary.
+          // Dashboard remains usable without it.
+
+        } finally {
+          setScannerLoading(
+            false,
+          );
+        }
+      }
+
+
+      void loadScannerResult();
+    },
+    [],
+  );
+
+
+  useEffect(
+    () => {
+      let cancelled =
+        false;
+
+
+      async function loadMarketOverview() {
+        try {
+          setMarketLoading(
+            true,
+          );
+
+
+          const responses =
+            await Promise.allSettled(
+              DASHBOARD_MARKETS.map(
+                async (
+                  symbol,
+                ) => {
+                  const response =
+                    await api(
+                      `/market/analyze/${encodeURIComponent(
+                        symbol,
+                      )}`,
+                    );
+
+
+                  if (!response.ok) {
+                    throw new Error(
+                      `Could not analyze ${symbol}.`,
+                    );
+                  }
+
+
+                  return (
+                    await response.json()
+                  ) as DashboardMarket;
+                },
+              ),
+            );
+
+
+          if (cancelled) {
+            return;
+          }
+
+
+          const successful =
+            responses.flatMap(
+              (
+                result,
+              ) =>
+                result.status
+                === "fulfilled"
+                  ? [
+                      result.value,
+                    ]
+                  : [],
+            );
+
+
+          setMarketOverview(
+            successful,
+          );
+
+        } catch {
+          // Broad-market context is supplementary.
+          // The rest of the dashboard remains usable.
+
+        } finally {
+          if (!cancelled) {
+            setMarketLoading(
+              false,
+            );
+          }
+        }
+      }
+
+
+      void loadMarketOverview();
+
+
+      return () => {
+        cancelled =
+          true;
+      };
+    },
+    [],
+  );
+
+
   /* =======================================================
-     DATE FILTER
+     PERSONAL WATCHLIST / RADAR
   ======================================================= */
 
-  const filteredTrades =
-    useMemo(
+  useEffect(
+    () => {
+      let cancelled =
+        false;
+
+
+      async function loadRadar() {
+        try {
+          setRadarLoading(
+            true,
+          );
+
+
+          const items =
+            await getWatchlist();
+
+
+          if (cancelled) {
+            return;
+          }
+
+
+          setWatchlist(
+            items,
+          );
+
+
+          if (
+            items.length === 0
+          ) {
+            setRadarMarkets(
+              [],
+            );
+
+            return;
+          }
+
+
+          const responses =
+            await Promise.allSettled(
+              items.map(
+                async (
+                  item,
+                ) => {
+                  const response =
+                    await api(
+                      `/market/analyze/${encodeURIComponent(
+                        item.symbol,
+                      )}`,
+                    );
+
+
+                  if (!response.ok) {
+                    throw new Error(
+                      `Could not analyze ${item.symbol}.`,
+                    );
+                  }
+
+
+                  return (
+                    await response.json()
+                  ) as DashboardMarket;
+                },
+              ),
+            );
+
+
+          if (cancelled) {
+            return;
+          }
+
+
+          const successful =
+            responses.flatMap(
+              (
+                result,
+              ) =>
+                result.status
+                === "fulfilled"
+                  ? [
+                      result.value,
+                    ]
+                  : [],
+            );
+
+
+          setRadarMarkets(
+            successful,
+          );
+
+        } catch {
+          if (!cancelled) {
+            setWatchlist(
+              [],
+            );
+
+            setRadarMarkets(
+              [],
+            );
+          }
+
+        } finally {
+          if (!cancelled) {
+            setRadarLoading(
+              false,
+            );
+          }
+        }
+      }
+
+
+      void loadRadar();
+
+
+      return () => {
+        cancelled =
+          true;
+      };
+    },
+    [],
+  );
+
+
+  const results =
+    useMemo<TradeResult[]>(
       () =>
-        filterByDateRange(
-          trades,
-          dateRange,
+        trades.map(
+          (trade) => ({
+            trade,
+            pnl:
+              calculatePnl(
+                trade,
+              ),
+          }),
         ),
       [
         trades,
-        dateRange,
       ],
     );
 
 
-  /* =======================================================
-     ANALYTICS
-  ======================================================= */
-
-  const analytics =
+  const tradingSummary =
     useMemo(
       () => {
-        const orderedTrades =
-          [
-            ...filteredTrades,
-          ]
-            .sort(
-              (
-                a,
-                b,
-              ) =>
-                new Date(
-                  a.created_at,
-                ).getTime()
-                - new Date(
-                  b.created_at,
-                ).getTime(),
-            );
-
-
-        const results =
-          orderedTrades.map(
-            (
-              trade,
-            ) => ({
-              trade,
-
-              pnl:
-                calculatePnl(
-                  trade,
-                ),
-            }),
-          );
-
-
-        const winners =
-          results.filter(
-            (
-              result,
-            ) =>
-              result.pnl
-              > 0,
-          );
-
-
-        const losers =
-          results.filter(
-            (
-              result,
-            ) =>
-              result.pnl
-              < 0,
-          );
-
-
-        const breakeven =
-          results.filter(
-            (
-              result,
-            ) =>
-              result.pnl
-              === 0,
-          );
-
-
         const netPnl =
           results.reduce(
             (
@@ -497,36 +666,14 @@ export default function Dashboard() {
             0,
           );
 
-
-        const grossProfit =
-          winners.reduce(
-            (
-              total,
-              result,
-            ) =>
-              total
-              + result.pnl,
-            0,
+        const winners =
+          results.filter(
+            (result) =>
+              result.pnl > 0,
           );
-
-
-        const grossLoss =
-          Math.abs(
-            losers.reduce(
-              (
-                total,
-                result,
-              ) =>
-                total
-                + result.pnl,
-              0,
-            ),
-          );
-
 
         const winRate =
-          results.length
-          > 0
+          results.length > 0
             ? (
                 winners.length
                 / results.length
@@ -534,757 +681,193 @@ export default function Dashboard() {
               * 100
             : 0;
 
-
-        const lossRate =
-          results.length
-          > 0
-            ? (
-                losers.length
-                / results.length
-              )
-              * 100
-            : 0;
-
-
-        const averagePnl =
-          results.length
-          > 0
-            ? netPnl
-              / results.length
-            : 0;
-
-
-        const averageWinner =
-          winners.length
-          > 0
-            ? grossProfit
-              / winners.length
-            : 0;
-
-
-        const averageLoser =
-          losers.length
-          > 0
-            ? grossLoss
-              / losers.length
-            : 0;
-
-
-        const expectancy =
-          (
-            winRate
-            / 100
-          )
-          * averageWinner
-          - (
-            lossRate
-            / 100
-          )
-          * averageLoser;
-
-
-        const profitFactor =
-          grossLoss
-          > 0
-            ? grossProfit
-              / grossLoss
-            : null;
-
-
-        const averageConfidence =
-          filteredTrades.length
-          > 0
-            ? filteredTrades.reduce(
-                (
-                  total,
-                  trade,
-                ) =>
-                  total
-                  + trade.confidence,
-                0,
-              )
-              / filteredTrades.length
-            : 0;
-
-
-        const bestTrade =
-          results.length
-          > 0
-            ? results.reduce(
-                (
-                  best,
-                  current,
-                ) =>
-                  current.pnl
-                  > best.pnl
-                    ? current
-                    : best,
-              )
-            : null;
-
-
-        const worstTrade =
-          results.length
-          > 0
-            ? results.reduce(
-                (
-                  worst,
-                  current,
-                ) =>
-                  current.pnl
-                  < worst.pnl
-                    ? current
-                    : worst,
-              )
-            : null;
-
-
-        /* =================================================
-           DIRECTION STATS
-        ================================================= */
-
-        function getDirectionStats(
-          direction:
-            | "long"
-            | "short",
-        ) {
-          const directionResults =
-            results.filter(
-              (
-                result,
-              ) =>
-                result.trade.direction
-                  .toLowerCase()
-                === direction,
-            );
-
-
-          const directionWins =
-            directionResults.filter(
-              (
-                result,
-              ) =>
-                result.pnl
-                > 0,
-            );
-
-
-          const directionPnl =
-            directionResults.reduce(
-              (
-                total,
-                result,
-              ) =>
-                total
-                + result.pnl,
-              0,
-            );
-
-
-          const directionAverage =
-            directionResults.length
-            > 0
-              ? directionPnl
-                / directionResults.length
-              : 0;
-
-
-          return {
-            trades:
-              directionResults.length,
-
-            wins:
-              directionWins.length,
-
-            pnl:
-              directionPnl,
-
-            averagePnl:
-              directionAverage,
-
-            winRate:
-              directionResults.length
-              > 0
-                ? (
-                    directionWins.length
-                    / directionResults.length
-                  )
-                  * 100
-                : 0,
-          };
-        }
-
-
-        const longStats =
-          getDirectionStats(
-            "long",
-          );
-
-
-        const shortStats =
-          getDirectionStats(
-            "short",
-          );
-
-
-        /* =================================================
-           CURRENT STREAK
-        ================================================= */
-
-        let currentStreak =
-          0;
-
-
-        let currentStreakType:
-          | "win"
-          | "loss"
-          | "breakeven"
-          | null =
-          null;
-
-
-        if (
-          results.length
-          > 0
-        ) {
-          const latest =
-            results[
-              results.length
-              - 1
-            ];
-
-
-          currentStreakType =
-            latest.pnl
-            > 0
-              ? "win"
-              : latest.pnl
-                < 0
-                ? "loss"
-                : "breakeven";
-
-
-          for (
-            let index =
-              results.length
-              - 1;
-            index
-            >= 0;
-            index -=
-              1
-          ) {
-            const result =
-              results[
-                index
-              ];
-
-
-            const type =
-              result.pnl
-              > 0
-                ? "win"
-                : result.pnl
-                  < 0
-                  ? "loss"
-                  : "breakeven";
-
-
-            if (
-              type
-              !== currentStreakType
-            ) {
-              break;
-            }
-
-
-            currentStreak +=
-              1;
-          }
-        }
-
-
-        /* =================================================
-           STRATEGIES
-        ================================================= */
-
-        const strategyMap =
-          new Map<
-            string,
-            {
-              trades: number;
-              wins: number;
-              losses: number;
-              pnl: number;
-              grossProfit: number;
-              grossLoss: number;
-            }
-          >();
-
-
-        results.forEach(
-          ({
-            trade,
-            pnl,
-          }) => {
-            const name =
-              getStrategyName(
-                trade,
-              );
-
-
-            const current =
-              strategyMap.get(
-                name,
-              )
-              ?? {
-                trades:
-                  0,
-
-                wins:
-                  0,
-
-                losses:
-                  0,
-
-                pnl:
-                  0,
-
-                grossProfit:
-                  0,
-
-                grossLoss:
-                  0,
-              };
-
-
-            strategyMap.set(
-              name,
-              {
-                trades:
-                  current.trades
-                  + 1,
-
-                wins:
-                  current.wins
-                  + (
-                    pnl
-                    > 0
-                      ? 1
-                      : 0
-                  ),
-
-                losses:
-                  current.losses
-                  + (
-                    pnl
-                    < 0
-                      ? 1
-                      : 0
-                  ),
-
-                pnl:
-                  current.pnl
-                  + pnl,
-
-                grossProfit:
-                  current.grossProfit
-                  + (
-                    pnl
-                    > 0
-                      ? pnl
-                      : 0
-                  ),
-
-                grossLoss:
-                  current.grossLoss
-                  + (
-                    pnl
-                    < 0
-                      ? Math.abs(
-                          pnl,
-                        )
-                      : 0
-                  ),
-              },
-            );
-          },
-        );
-
-
-        const strategies =
-          Array.from(
-            strategyMap
-              .entries(),
-          )
-            .map(
-              (
-                [
-                  name,
-                  data,
-                ],
-              ) => {
-                const strategyWinRate =
-                  data.trades
-                  > 0
-                    ? (
-                        data.wins
-                        / data.trades
-                      )
-                      * 100
-                    : 0;
-
-
-                const strategyLossRate =
-                  data.trades
-                  > 0
-                    ? (
-                        data.losses
-                        / data.trades
-                      )
-                      * 100
-                    : 0;
-
-
-                const averageWin =
-                  data.wins
-                  > 0
-                    ? data.grossProfit
-                      / data.wins
-                    : 0;
-
-
-                const averageLoss =
-                  data.losses
-                  > 0
-                    ? data.grossLoss
-                      / data.losses
-                    : 0;
-
-
-                const strategyExpectancy =
-                  (
-                    strategyWinRate
-                    / 100
-                  )
-                  * averageWin
-                  - (
-                    strategyLossRate
-                    / 100
-                  )
-                  * averageLoss;
-
-
-                return {
-                  name,
-
-                  trades:
-                    data.trades,
-
-                  wins:
-                    data.wins,
-
-                  losses:
-                    data.losses,
-
-                  pnl:
-                    data.pnl,
-
-                  winRate:
-                    strategyWinRate,
-
-                  expectancy:
-                    strategyExpectancy,
-                };
-              },
-            )
-            .sort(
-              (
-                a,
-                b,
-              ) =>
-                b.expectancy
-                - a.expectancy,
-            );
-
-
-        /* =================================================
-           TAGS
-        ================================================= */
-
-        const tagMap =
-          new Map<
-            string,
-            {
-              trades: number;
-              wins: number;
-              pnl: number;
-            }
-          >();
-
-
-        results.forEach(
-          ({
-            trade,
-            pnl,
-          }) => {
-            const tags =
-              trade.tags
-              ?? [];
-
-
-            tags.forEach(
-              (
-                tag,
-              ) => {
-                const current =
-                  tagMap.get(
-                    tag,
-                  )
-                  ?? {
-                    trades:
-                      0,
-
-                    wins:
-                      0,
-
-                    pnl:
-                      0,
-                  };
-
-
-                tagMap.set(
-                  tag,
-                  {
-                    trades:
-                      current.trades
-                      + 1,
-
-                    wins:
-                      current.wins
-                      + (
-                        pnl
-                        > 0
-                          ? 1
-                          : 0
-                      ),
-
-                    pnl:
-                      current.pnl
-                      + pnl,
-                  },
-                );
-              },
-            );
-          },
-        );
-
-
-        const tags =
-          Array.from(
-            tagMap
-              .entries(),
-          )
-            .map(
-              (
-                [
-                  name,
-                  data,
-                ],
-              ) => ({
-                name,
-
-                trades:
-                  data.trades,
-
-                pnl:
-                  data.pnl,
-
-                averagePnl:
-                  data.trades
-                  > 0
-                    ? data.pnl
-                      / data.trades
-                    : 0,
-
-                winRate:
-                  data.trades
-                  > 0
-                    ? (
-                        data.wins
-                        / data.trades
-                      )
-                      * 100
-                    : 0,
-              }),
-            )
-            .sort(
-              (
-                a,
-                b,
-              ) =>
-                b.averagePnl
-                - a.averagePnl,
-            );
-
-
         return {
-          results,
-          winners,
-          losers,
-          breakeven,
-
           netPnl,
-          grossProfit,
-          grossLoss,
-
           winRate,
-          lossRate,
-
-          averagePnl,
-          averageWinner,
-          averageLoser,
-
-          expectancy,
-          profitFactor,
-          averageConfidence,
-
-          bestTrade,
-          worstTrade,
-
-          longStats,
-          shortStats,
-
-          currentStreak,
-          currentStreakType,
-
-          strategies,
-          tags,
-
-          bestStrategy:
-            strategies[
-              0
-            ]
-            ?? null,
-
-          worstStrategy:
-            strategies.length
-            > 1
-              ? strategies[
-                  strategies.length
-                  - 1
-                ]
-              : null,
-
-          bestTag:
-            tags[
-              0
-            ]
-            ?? null,
-
-          worstTag:
-            tags.length
-            > 1
-              ? tags[
-                  tags.length
-                  - 1
-                ]
-              : null,
+          trades:
+            results.length,
         };
       },
       [
-        filteredTrades,
+        results,
       ],
     );
 
-
-  /* =======================================================
-     EQUITY CURVE
-  ======================================================= */
-
-  const equityCurve =
-    useMemo(
-      () => {
-        let runningTotal =
-          0;
-
-
-        return analytics.results.map(
-          (
-            result,
-            index,
-          ) => {
-            runningTotal +=
-              result.pnl;
-
-
-            return {
-              trade:
-                index
-                + 1,
-
-              equity:
-                Number(
-                  runningTotal
-                    .toFixed(
-                      2,
-                    ),
-                ),
-
-              pnl:
-                Number(
-                  result.pnl
-                    .toFixed(
-                      2,
-                    ),
-                ),
-
-              symbol:
-                result.trade
-                  .symbol,
-
-              date:
-                result.trade
-                  .created_at,
-            };
-          },
-        );
-      },
-      [
-        analytics.results,
-      ],
-    );
-
-
-  /* =======================================================
-     RECENT TRADES
-  ======================================================= */
 
   const recentTrades =
     useMemo(
       () =>
         [
-          ...analytics.results,
+          ...results,
+        ]
+          .sort(
+            (a, b) =>
+              new Date(
+                b.trade.created_at,
+              ).getTime()
+              - new Date(
+                a.trade.created_at,
+              ).getTime(),
+          )
+          .slice(
+            0,
+            3,
+          ),
+      [
+        results,
+      ],
+    );
+
+
+  const topOpportunities =
+    useMemo(
+      () =>
+        [
+          ...(
+            scannerResult
+              ?.candidates
+            ?? []
+          ),
         ]
           .sort(
             (
               a,
               b,
             ) =>
-              new Date(
-                b.trade
-                  .created_at,
-              ).getTime()
-              - new Date(
-                a.trade
-                  .created_at,
-              ).getTime(),
+              b.rank_score
+              - a.rank_score,
           )
           .slice(
             0,
-            5,
+            3,
           ),
       [
-        analytics.results,
+        scannerResult,
+      ],
+    );
+
+
+  const strongestOpportunity =
+    topOpportunities[
+      0
+    ]
+    ?? null;
+
+
+  const marketPulse =
+    useMemo(
+      () => {
+        if (
+          marketOverview.length
+          === 0
+        ) {
+          return null;
+        }
+
+
+        const positive =
+          marketOverview.filter(
+            (
+              market,
+            ) =>
+              market.change_percent
+              > 0,
+          ).length;
+
+
+        const negative =
+          marketOverview.filter(
+            (
+              market,
+            ) =>
+              market.change_percent
+              < 0,
+          ).length;
+
+
+        const averageChange =
+          marketOverview.reduce(
+            (
+              total,
+              market,
+            ) =>
+              total
+              + market.change_percent,
+            0,
+          )
+          / marketOverview.length;
+
+
+        const averageTrend =
+          marketOverview.reduce(
+            (
+              total,
+              market,
+            ) =>
+              total
+              + market.trend_score,
+            0,
+          )
+          / marketOverview.length;
+
+
+        let title =
+          "Major indexes are mixed.";
+
+        let description =
+          "Broad-market benchmarks are moving in different directions. Select an index below for deeper technical context.";
+
+
+        if (
+          positive
+          === marketOverview.length
+        ) {
+          title =
+            "Major indexes are moving higher.";
+
+          description =
+            "SPY, QQQ and DIA are all positive in the latest available market data. The broad tape is showing coordinated strength.";
+        } else if (
+          negative
+          === marketOverview.length
+        ) {
+          title =
+            "Major indexes are moving lower.";
+
+          description =
+            "SPY, QQQ and DIA are all negative in the latest available market data. Broad-market pressure is visible across the benchmarks.";
+        } else if (
+          averageChange
+          > 0.25
+        ) {
+          title =
+            "The broad market has a positive lean.";
+
+          description =
+            "The major benchmarks are mixed, but their average move is positive. Open Market Analysis for the underlying technical structure.";
+        } else if (
+          averageChange
+          < -0.25
+        ) {
+          title =
+            "The broad market has a negative lean.";
+
+          description =
+            "The major benchmarks are mixed, but their average move is negative. Open Market Analysis for the underlying technical structure.";
+        }
+
+
+        return {
+          title,
+          description,
+          positive,
+          negative,
+          averageChange,
+          averageTrend,
+        };
+      },
+      [
+        marketOverview,
       ],
     );
 
@@ -1292,220 +875,12 @@ export default function Dashboard() {
   const firstName =
     user
       ?.name
-      ?.split(
-        " ",
-      )[
-        0
-      ]
+      ?.split(" ")[0]
     || "Trader";
 
 
-  /* =======================================================
-     MAIN METRICS
-  ======================================================= */
-
-  const stats:
-    DashboardStat[] = [
-      {
-        label:
-          "Net P&L",
-
-        value:
-          formatMoney(
-            analytics.netPnl,
-          ),
-
-        detail:
-          `${analytics.results.length} trade${analytics.results.length === 1 ? "" : "s"} in range`,
-
-        tone:
-          toneFromNumber(
-            analytics.netPnl,
-          ),
-      },
-
-      {
-        label:
-          "Win rate",
-
-        value:
-          `${analytics.winRate.toFixed(
-            1,
-          )}%`,
-
-        detail:
-          `${analytics.winners.length} wins · ${analytics.losers.length} losses`,
-
-        tone:
-          analytics.results.length
-          === 0
-            ? "neutral"
-            : analytics.winRate
-              >= 50
-              ? "positive"
-              : "negative",
-      },
-
-      {
-        label:
-          "Expectancy",
-
-        value:
-          formatMoney(
-            analytics.expectancy,
-          ),
-
-        detail:
-          "Expected result per trade",
-
-        tone:
-          toneFromNumber(
-            analytics.expectancy,
-          ),
-      },
-
-      {
-        label:
-          "Profit factor",
-
-        value:
-          analytics.profitFactor
-          === null
-            ? analytics.grossProfit
-              > 0
-              ? "∞"
-              : "—"
-            : analytics.profitFactor
-                .toFixed(
-                  2,
-                ),
-
-        detail:
-          "Gross profit ÷ gross loss",
-
-        tone:
-          analytics.profitFactor
-          === null
-            ? "neutral"
-            : analytics.profitFactor
-              >= 1
-              ? "positive"
-              : "negative",
-      },
-    ];
-
-
-  const secondaryStats:
-    DashboardStat[] = [
-      {
-        label:
-          "Average winner",
-
-        value:
-          formatMoney(
-            analytics.averageWinner,
-          ),
-
-        detail:
-          "Average profitable trade",
-
-        tone:
-          analytics.averageWinner
-          > 0
-            ? "positive"
-            : "neutral",
-      },
-
-      {
-        label:
-          "Average loser",
-
-        value:
-          analytics.averageLoser
-          > 0
-            ? `-${formatMoney(
-                analytics.averageLoser,
-              )}`
-            : formatMoney(
-                0,
-              ),
-
-        detail:
-          "Average losing trade",
-
-        tone:
-          analytics.averageLoser
-          > 0
-            ? "negative"
-            : "neutral",
-      },
-
-      {
-        label:
-          "Average trade",
-
-        value:
-          formatMoney(
-            analytics.averagePnl,
-          ),
-
-        detail:
-          "Average P&L per trade",
-
-        tone:
-          toneFromNumber(
-            analytics.averagePnl,
-          ),
-      },
-
-      {
-        label:
-          "Current streak",
-
-        value:
-          analytics.currentStreak
-          > 0
-            ? `${analytics.currentStreak} ${
-                analytics.currentStreakType
-                === "win"
-                  ? "W"
-                  : analytics.currentStreakType
-                    === "loss"
-                    ? "L"
-                    : "BE"
-              }`
-            : "—",
-
-        detail:
-          analytics.currentStreakType
-          === "win"
-            ? "Winning streak"
-            : analytics.currentStreakType
-              === "loss"
-              ? "Losing streak"
-              : analytics.currentStreakType
-                === "breakeven"
-                ? "Breakeven streak"
-                : "No streak yet",
-
-        tone:
-          analytics.currentStreakType
-          === "win"
-            ? "positive"
-            : analytics.currentStreakType
-              === "loss"
-              ? "negative"
-              : "neutral",
-      },
-    ];
-
-
-  /* =======================================================
-     UI
-  ======================================================= */
-
   return (
-    <div className="flex min-h-screen bg-black text-white">
+    <div className="flex min-h-screen text-white">
 
       <Sidebar
         active="Dashboard"
@@ -1514,782 +889,1106 @@ export default function Dashboard() {
 
       <main className="min-w-0 flex-1">
 
-        <div className="mx-auto w-full max-w-[1600px] px-6 py-8 lg:px-10 lg:py-10">
+        <PageSectionNav
+          sections={
+            DASHBOARD_SECTIONS
+          }
+        />
 
-          <PageHeader
-            eyebrow="Trading overview"
 
-            title={`${firstName}'s dashboard`}
+        <div className="mx-auto w-full max-w-[1540px] px-5 pb-16 pt-9 sm:px-7 lg:px-10 lg:pb-24 lg:pt-12">
 
-            description="Track your trading performance, monitor execution quality, identify your strongest setups and find the areas that need the most attention."
+          {/* ===============================================
+              GREETING
+          =============================================== */}
 
-            actions={
-              <>
+          <section
+            id="today"
+            className="scroll-mt-28"
+          >
+
+            <div className="flex flex-col gap-6 border-b border-white/5 pb-9 xl:flex-row xl:items-end xl:justify-between">
+
+              <div className="max-w-3xl">
+
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+                  Your market workspace
+                </p>
+
+
+                <h1 className="mt-3 text-[2.4rem] font-semibold tracking-[-0.045em] text-white sm:text-5xl">
+                  {getGreeting()},{" "}
+                  {firstName}.
+                </h1>
+
+
+                <p className="mt-4 max-w-2xl text-[15px] leading-7 text-zinc-500">
+                  Start with what matters.
+                  A-Trader keeps the deeper
+                  data available when you
+                  want it.
+                </p>
+
+              </div>
+
+
+              <div className="flex flex-wrap items-center gap-2">
+
                 <Link
-                  href="/replay"
-                  className="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-sm font-medium text-zinc-300 transition hover:border-zinc-700 hover:bg-zinc-900 hover:text-white"
+                  href="/scanner"
+                  className="rounded-xl border border-white/10 bg-white/[0.025] px-4 py-2.5 text-sm font-medium text-zinc-300 transition hover:border-white/20 hover:bg-white/[0.05] hover:text-white"
                 >
-                  Practice replay
+                  Open scanner
                 </Link>
 
 
                 <Link
-                  href="/analytics"
-                  className="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-sm font-medium text-zinc-300 transition hover:border-zinc-700 hover:bg-zinc-900 hover:text-white"
+                  href="/market"
+                  className="at-marble rounded-xl px-4 py-2.5 text-sm font-semibold transition hover:brightness-95"
                 >
-                  Full analytics
+                  Analyze market
                 </Link>
 
+              </div>
 
-                <Link
-                  href="/journal"
-                  className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-zinc-200"
-                >
-                  + Log trade
-                </Link>
-              </>
-            }
-
-            status={
-              <StatusBadge
-                tone="positive"
-                dot
-              >
-                Journal connected
-              </StatusBadge>
-            }
-          />
-
-
-          <PageSectionNav sections={DASHBOARD_SECTIONS} />
-
-
-          {error && (
-            <div className="mb-6 rounded-2xl border border-red-900/60 bg-red-950/30 px-5 py-4 text-sm text-red-300">
-              {error}
             </div>
-          )}
 
 
-          {loading ? (
-            <DashboardLoading />
-          ) : (
-            <div className="space-y-8">
-
-              {/* ===========================================
-                  DATE RANGE
-              =========================================== */}
-
-              <Card
-                padding="sm"
-              >
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
-                  <div>
-
-                    <p className="text-sm font-medium text-zinc-200">
-                      Performance period
-                    </p>
+            {error && (
+              <div className="mt-6 rounded-2xl border border-red-500/20 bg-red-500/[0.06] px-5 py-4 text-sm text-red-300">
+                {error}
+              </div>
+            )}
 
 
-                    <p className="mt-1 text-xs leading-5 text-zinc-600">
-                      All performance statistics update using the selected date range.
-                    </p>
+            {/* =============================================
+                PRIMARY ATTENTION AREA
+            ============================================= */}
 
-                  </div>
+            <div className="mt-8">
+
+              <div className="at-surface-raised overflow-hidden rounded-[28px]">
+
+                <div className="grid items-start lg:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.65fr)]">
+
+                  {/* =======================================
+                      MARKET INTELLIGENCE
+                  ======================================= */}
+
+                  <div className="flex flex-col p-7 sm:p-8 lg:p-9">
+
+                    <div className="flex flex-wrap items-center gap-3">
+
+                      <span className="rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-300">
+                        Market pulse
+                      </span>
 
 
-                  <div className="flex flex-wrap gap-1 rounded-xl border border-zinc-900 bg-black p-1">
+                      <span className="flex items-center gap-2 text-xs text-zinc-600">
 
-                    {(
-                      [
-                        "7D",
-                        "30D",
-                        "3M",
-                        "1Y",
-                        "ALL",
-                      ] as DateRange[]
-                    ).map(
-                      (
-                        range,
-                      ) => (
-                        <button
-                          key={
-                            range
-                          }
-
-                          type="button"
-
-                          onClick={() =>
-                            setDateRange(
-                              range,
-                            )
-                          }
-
-                          className={`rounded-lg px-3.5 py-2 text-xs font-semibold transition ${
-                            dateRange
-                            === range
-                              ? "bg-zinc-100 text-black"
-                              : "text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200"
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            marketLoading
+                              ? "bg-zinc-500"
+                              : "bg-emerald-400"
                           }`}
-                        >
-                          {range}
-                        </button>
-                      ),
-                    )}
+                        />
 
-                  </div>
-
-                </div>
-              </Card>
-
-
-              {/* ===========================================
-                  PRIMARY METRICS
-              =========================================== */}
-
-              <section id="performance" className="scroll-mt-28">
-
-                <SectionHeading
-                  eyebrow="Performance"
-                  title="Trading performance"
-                  description="The most important statistics from your selected period."
-                />
-
-
-                <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
-                  {stats.map(
-                    (
-                      stat,
-                    ) => (
-                      <MetricCard
-                        key={
-                          stat.label
+                        {
+                          marketLoading
+                            ? "Reading markets"
+                            : "Live workspace"
                         }
 
-                        label={
-                          stat.label
+                      </span>
+
+                    </div>
+
+
+                    <div className="mt-6">
+
+                      <h2 className="max-w-3xl text-3xl font-semibold leading-[1.1] tracking-[-0.04em] text-white sm:text-[2.45rem]">
+
+                        {
+                          marketLoading
+                            ? "Reading the broad market…"
+                            : marketPulse
+                              ?.title
+                              ?? "Your market workspace is ready."
                         }
 
-                        value={
-                          <span
-                            className={
-                              getToneClass(
-                                stat.tone,
-                              )
-                            }
-                          >
-                            {
-                              stat.value
-                            }
-                          </span>
+                      </h2>
+
+
+                      <p className="mt-5 max-w-2xl text-[15px] leading-7 text-zinc-400">
+
+                        {
+                          marketLoading
+                            ? "A-Trader is analyzing SPY, QQQ and DIA to build the current market picture."
+                            : marketPulse
+                              ?.description
+                              ?? "Market context is temporarily unavailable, but your scanner, journal and analysis tools remain ready."
                         }
 
-                        detail={
-                          stat.detail
-                        }
-                      />
-                    ),
-                  )}
-
-                </div>
-
-              </section>
-
-
-              {/* ===========================================
-                  SECONDARY METRICS
-              =========================================== */}
-
-              <section>
-
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
-                  {secondaryStats.map(
-                    (
-                      stat,
-                    ) => (
-                      <MetricCard
-                        key={
-                          stat.label
-                        }
-
-                        label={
-                          stat.label
-                        }
-
-                        value={
-                          <span
-                            className={
-                              getToneClass(
-                                stat.tone,
-                              )
-                            }
-                          >
-                            {
-                              stat.value
-                            }
-                          </span>
-                        }
-
-                        detail={
-                          stat.detail
-                        }
-                      />
-                    ),
-                  )}
-
-                </div>
-
-              </section>
-
-
-              {/* ===========================================
-                  EQUITY + SNAPSHOT
-              =========================================== */}
-
-              <section id="equity" className="scroll-mt-28 grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
-
-                <Card
-                  title="Equity curve"
-
-                  description="Cumulative realized P&L after every trade in the selected period."
-
-                  action={
-                    <div className="text-right">
-
-                      <p
-                        className={`text-xl font-semibold ${
-                          analytics.netPnl
-                          > 0
-                            ? "text-emerald-400"
-                            : analytics.netPnl
-                              < 0
-                              ? "text-red-400"
-                              : "text-white"
-                        }`}
-                      >
-                        {analytics.netPnl
-                        > 0
-                          ? "+"
-                          : ""}
-
-                        {formatMoney(
-                          analytics.netPnl,
-                        )}
-                      </p>
-
-
-                      <p className="mt-1 text-[11px] text-zinc-600">
-                        Net realized
                       </p>
 
                     </div>
-                  }
-                >
-
-                  {equityCurve.length
-                  === 0 ? (
-                    <EmptyChart />
-                  ) : (
-                    <div className="mt-2 h-80 w-full">
-
-                      <ResponsiveContainer
-                        width="100%"
-                        height="100%"
-                      >
-
-                        <LineChart
-                          data={
-                            equityCurve
-                          }
-
-                          margin={{
-                            top:
-                              10,
-
-                            right:
-                              20,
-
-                            left:
-                              0,
-
-                            bottom:
-                              0,
-                          }}
-                        >
-
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            stroke="#27272a"
-                            vertical={
-                              false
-                            }
-                          />
 
 
-                          <XAxis
-                            dataKey="trade"
-                            stroke="#52525b"
-                            tickLine={
-                              false
-                            }
-                            axisLine={
-                              false
-                            }
-                            fontSize={
-                              11
-                            }
-                          />
+                    {/* =====================================
+                        LIVE SIGNAL STRIP
+                    ===================================== */}
+
+                    <div className="mt-7">
+
+                      <p className="mb-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-zinc-700">
+                        Live A-Trader intelligence
+                      </p>
+
+                      <div className="grid overflow-hidden rounded-2xl border border-white/[0.08] bg-black/35 sm:grid-cols-3">
+
+                        {/* MARKET */}
+
+                        <div className="p-4 sm:p-5">
+
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.17em] text-zinc-700">
+                            Market
+                          </p>
 
 
-                          <YAxis
-                            stroke="#52525b"
-                            tickLine={
-                              false
-                            }
-                            axisLine={
-                              false
-                            }
-                            fontSize={
-                              11
+                          <p className="mt-2 text-base font-semibold text-zinc-200">
+
+                            {
+                              marketLoading
+                                ? "Analyzing"
+                                : marketPulse
+                                  ? `${marketPulse.positive}/${marketOverview.length} higher`
+                                  : "Unavailable"
                             }
 
-                            tickFormatter={(
-                              value,
-                            ) =>
-                              `$${value}`
-                            }
-                          />
+                          </p>
 
 
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor:
-                                "#09090b",
+                          <p
+                            className={`mt-1 text-xs font-medium ${
+                              marketPulse
+                              && marketPulse.averageChange > 0
+                                ? "text-emerald-400"
+                                : marketPulse
+                                && marketPulse.averageChange < 0
+                                  ? "text-red-400"
+                                  : "text-zinc-600"
+                            }`}
+                          >
 
-                              border:
-                                "1px solid #27272a",
-
-                              borderRadius:
-                                "12px",
-
-                              boxShadow:
-                                "0 15px 35px rgba(0,0,0,.35)",
-                            }}
-
-                            labelStyle={{
-                              color:
-                                "#71717a",
-                            }}
-
-                            formatter={(
-                              value,
-                            ) => [
-                              formatMoney(
-                                Number(
-                                  value,
-                                ),
-                              ),
-
-                              "Equity",
-                            ]}
-
-                            labelFormatter={(
-                              label,
-                            ) =>
-                              `Trade ${label}`
-                            }
-                          />
-
-
-                          <Line
-                            type="monotone"
-                            dataKey="equity"
-                            stroke="currentColor"
-                            strokeWidth={
-                              2
-                            }
-                            className="text-emerald-400"
-                            dot={
-                              false
+                            {
+                              marketPulse
+                                ? `${marketPulse.averageChange >= 0 ? "+" : ""}${marketPulse.averageChange.toFixed(
+                                    2,
+                                  )}% benchmark average`
+                                : "Broad market context"
                             }
 
-                            activeDot={{
-                              r:
-                                4,
-                            }}
-                          />
+                          </p>
 
-                        </LineChart>
+                        </div>
 
-                      </ResponsiveContainer>
+
+                        {/* SCANNER */}
+
+                        <div className="border-t border-white/[0.07] p-4 sm:border-l sm:border-t-0 sm:p-5">
+
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.17em] text-zinc-700">
+                            Scanner
+                          </p>
+
+
+                          <p className="mt-2 text-base font-semibold text-zinc-200">
+                            {
+                              scannerLoading
+                                ? "Checking"
+                                : scannerResult
+                                  ? `${scannerResult.scanned} analyzed`
+                                  : "Ready"
+                            }
+                          </p>
+
+
+                          <p className="mt-1 text-xs text-zinc-700">
+                            {
+                              scannerLoading
+                                ? "Reading latest scan"
+                                : scannerResult
+                                  ? `${scannerResult.matched} matched current criteria`
+                                  : "Run a scan to surface setups"
+                            }
+                          </p>
+
+                        </div>
+
+
+                        {/* PERSONAL */}
+
+                        <div className="border-t border-white/[0.07] p-4 sm:border-l sm:border-t-0 sm:p-5">
+
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.17em] text-zinc-700">
+                            Your trading
+                          </p>
+
+
+                          <p
+                            className={`mt-2 text-base font-semibold ${
+                              tradingSummary.netPnl > 0
+                                ? "text-emerald-400"
+                                : tradingSummary.netPnl < 0
+                                  ? "text-red-400"
+                                  : "text-zinc-200"
+                            }`}
+                          >
+                            {formatMoney(
+                              tradingSummary.netPnl,
+                            )}
+                          </p>
+
+
+                          <p className="mt-1 text-xs text-zinc-700">
+                            {tradingSummary.trades} logged{" "}
+                            {tradingSummary.trades === 1
+                              ? "trade"
+                              : "trades"}
+                          </p>
+
+                        </div>
+
+                      </div>
 
                     </div>
-                  )}
-
-                </Card>
 
 
-                <Card
-                  title="Trading snapshot"
-                  description="A quick interpretation of your recent journal data."
-                >
-
-                  <p className="text-sm leading-7 text-zinc-400">
+                    {/* =====================================
+                        TODAY'S FOCUS
+                    ===================================== */}
 
                     {
-                      analytics.results.length
-                      < 5
-                        ? `You have ${analytics.results.length} trade${analytics.results.length === 1 ? "" : "s"} in this period. Keep logging consistently so the patterns in your journal become more reliable.`
+                      strongestOpportunity
+                      && (
+                        <div className="mt-7 border-t border-white/[0.06] pt-6">
 
-                        : analytics.expectancy
-                          > 0
-                          ? `Your expectancy is currently ${formatMoney(analytics.expectancy)} per trade. Focus on consistently executing the setups and behaviors contributing to that positive edge.`
+                          <div className="flex items-center justify-between gap-4">
 
-                          : `Your expectancy is currently ${formatMoney(analytics.expectancy)} per trade. Review average losses, weaker strategies and repeated psychology patterns before increasing risk.`
+                            <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-zinc-700">
+                              Today&apos;s focus
+                            </p>
+
+
+                            <span className="flex items-center gap-2 text-[10px] font-medium text-emerald-400">
+
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+
+                              {
+                                strongestOpportunity.action_state
+                              }
+
+                            </span>
+
+                          </div>
+
+
+                          <div className="mt-4 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+
+                            <div className="min-w-0">
+
+                              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+
+                                <p className="text-2xl font-semibold tracking-[-0.03em] text-white">
+                                  {
+                                    strongestOpportunity.symbol
+                                  }
+                                </p>
+
+
+                                <p className="text-sm text-zinc-500">
+                                  {
+                                    strongestOpportunity.trade_horizon
+                                  }
+                                  {" · "}
+                                  {
+                                    strongestOpportunity.reward_risk_ratio.toFixed(
+                                      2,
+                                    )
+                                  }
+                                  :1 R/R
+                                </p>
+
+                              </div>
+
+
+                              <div className="mt-2 flex flex-wrap items-center gap-3">
+
+                                <p className="text-sm font-semibold text-emerald-400">
+                                  {
+                                    strongestOpportunity.opportunity_score
+                                  }
+                                  /100 opportunity
+                                </p>
+
+                                <span className="h-1 w-1 rounded-full bg-zinc-700" />
+
+                                <p className="text-xs text-zinc-600">
+                                  Highest-ranked current setup
+                                </p>
+
+                              </div>
+
+
+                              <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">
+
+                                {
+                                  strongestOpportunity.reasons[
+                                    0
+                                  ]
+                                  ?? `A-Trader ranked ${strongestOpportunity.symbol} as the strongest current setup in the latest scan.`
+                                }
+
+                              </p>
+
+                            </div>
+
+
+                            <Link
+                              href={`/market?symbol=${encodeURIComponent(
+                                strongestOpportunity.symbol,
+                              )}`}
+                              className="shrink-0 text-sm font-semibold text-zinc-300 transition hover:text-white"
+                            >
+                              View setup →
+                            </Link>
+
+                          </div>
+
+                        </div>
+                      )
                     }
 
+                  </div>
+
+
+                  {/* =======================================
+                      A-TRADER TODAY
+                  ======================================= */}
+
+                  <div className="border-t border-white/5 bg-white/[0.018] p-7 lg:self-stretch lg:border-l lg:border-t-0 lg:p-8">
+
+                    <div>
+
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.19em] text-zinc-600">
+                        A-Trader today
+                      </p>
+
+
+                      <h3 className="mt-3 text-xl font-semibold tracking-[-0.025em] text-white">
+                        Your workspace is active.
+                      </h3>
+
+
+                      <p className="mt-2 text-sm leading-6 text-zinc-600">
+                        Start with what deserves attention, then go deeper only when you need to.
+                      </p>
+
+                    </div>
+
+
+                    <div className="mt-5 space-y-2.5">
+
+                      {/* TOP SETUP */}
+
+                      <Link
+                        href={
+                          strongestOpportunity
+                            ? `/market?symbol=${encodeURIComponent(
+                                strongestOpportunity.symbol,
+                              )}`
+                            : "/scanner"
+                        }
+                        className="group block rounded-xl border border-white/[0.07] bg-black/20 px-4 py-3.5 transition hover:border-white/[0.13] hover:bg-white/[0.025]"
+                      >
+
+                        <div className="flex items-start justify-between gap-4">
+
+                          <div>
+
+                            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-700">
+                              Scanner
+                            </p>
+
+
+                            <p className="mt-2 text-sm font-semibold text-zinc-200">
+
+                              {
+                                scannerLoading
+                                  ? "Checking latest results"
+                                  : scannerResult
+                                    ? `${scannerResult.scanned} symbols analyzed`
+                                    : "Discover opportunities"
+                              }
+
+                            </p>
+
+                          </div>
+
+
+                          <span className="text-sm text-zinc-700 transition group-hover:translate-x-0.5 group-hover:text-zinc-400">
+                            →
+                          </span>
+
+                        </div>
+
+
+                        <p className="mt-2 text-xs leading-5 text-zinc-600">
+
+                          {
+                            strongestOpportunity
+                              ? `${strongestOpportunity.trade_horizon} · ${strongestOpportunity.action_state} · ${strongestOpportunity.reward_risk_ratio.toFixed(
+                                  2,
+                                )}:1 reward/risk`
+                              : "Scan the market and surface the strongest technical setups."
+                          }
+
+                        </p>
+
+                      </Link>
+
+
+                      {/* MARKET */}
+
+                      <Link
+                        href="/market"
+                        className="group block rounded-xl border border-white/[0.07] bg-black/20 px-4 py-3.5 transition hover:border-white/[0.13] hover:bg-white/[0.025]"
+                      >
+
+                        <div className="flex items-start justify-between gap-4">
+
+                          <div>
+
+                            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-700">
+                              Market analysis
+                            </p>
+
+
+                            <p className="mt-2 text-sm font-semibold text-zinc-200">
+                              Understand the move
+                            </p>
+
+                          </div>
+
+
+                          <span className="text-sm text-zinc-700 transition group-hover:translate-x-0.5 group-hover:text-zinc-400">
+                            →
+                          </span>
+
+                        </div>
+
+
+                        <p className="mt-2 text-xs leading-5 text-zinc-600">
+                          Open charts, setup quality, technical levels and market structure.
+                        </p>
+
+                      </Link>
+
+
+                      {/* JOURNAL */}
+
+                      <Link
+                        href="/journal"
+                        className="group block rounded-xl border border-white/[0.07] bg-black/20 px-4 py-3.5 transition hover:border-white/[0.13] hover:bg-white/[0.025]"
+                      >
+
+                        <div className="flex items-start justify-between gap-4">
+
+                          <div>
+
+                            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-700">
+                              Journal
+                            </p>
+
+
+                            <p className="mt-2 text-sm font-semibold text-zinc-200">
+
+                              {
+                                recentTrades.length > 0
+                                  ? "Review your latest trade"
+                                  : "Start building your history"
+                              }
+
+                            </p>
+
+                          </div>
+
+
+                          <span className="text-sm text-zinc-700 transition group-hover:translate-x-0.5 group-hover:text-zinc-400">
+                            →
+                          </span>
+
+                        </div>
+
+
+                        <p className="mt-2 text-xs leading-5 text-zinc-600">
+
+                          {
+                            recentTrades.length > 0
+                              ? `${recentTrades[0].trade.symbol} is your most recent journal entry.`
+                              : "Log trades so A-Trader can turn activity into useful personal context."
+                          }
+
+                        </p>
+
+                      </Link>
+
+                    </div>
+
+
+
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          </section>
+
+
+          {/* ===============================================
+              MARKETS
+          =============================================== */}
+
+          <section
+            id="markets"
+            className="scroll-mt-28 pt-10"
+          >
+
+            <SectionHeader
+              eyebrow="Markets"
+              title="Know what is happening."
+              description="A clean market view first. Deeper analysis stays one click away."
+              action={
+                <Link
+                  href="/market"
+                  className="text-sm font-medium text-zinc-400 transition hover:text-white"
+                >
+                  Market analysis →
+                </Link>
+              }
+            />
+
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-3">
+
+              {marketLoading ? (
+                <>
+                  <MarketLoadingCard />
+                  <MarketLoadingCard />
+                  <MarketLoadingCard />
+                </>
+              ) : marketOverview.length === 0 ? (
+                <div className="at-surface rounded-[22px] p-6 lg:col-span-3">
+
+                  <p className="text-sm text-zinc-500">
+                    Broad-market data is temporarily unavailable.
+                  </p>
+
+                </div>
+              ) : (
+                marketOverview.map(
+                  (
+                    market,
+                  ) => (
+                    <MarketCard
+                      key={
+                        market.symbol
+                      }
+
+                      market={
+                        market
+                      }
+                    />
+                  ),
+                )
+              )}
+
+            </div>
+
+
+            <div className="mt-8">
+
+              <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+
+                <div>
+
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+                    Your radar
                   </p>
 
 
-                  <div className="mt-6 grid gap-2">
+                  <h3 className="mt-2 text-lg font-semibold tracking-[-0.02em] text-white">
+                    Markets you are watching
+                  </h3>
 
-                    <MiniMetric
-                      label="Average confidence"
-                      value={`${analytics.averageConfidence.toFixed(
-                        1,
-                      )}/10`}
-                    />
+                </div>
 
 
-                    <MiniMetric
-                      label="Wins"
-                      value={
-                        analytics.winners
-                          .length
-                          .toString()
-                      }
+                <Link
+                  href="/market"
+                  className="text-xs font-medium text-zinc-500 transition hover:text-white"
+                >
+                  Add from Market →
+                </Link>
 
-                      tone="positive"
-                    />
+              </div>
 
 
-                    <MiniMetric
-                      label="Losses"
-                      value={
-                        analytics.losers
-                          .length
-                          .toString()
-                      }
+              {
+                radarLoading
+                  ? (
+                      <div className="at-surface rounded-[22px] p-6">
 
-                      tone="negative"
-                    />
+                        <p className="text-sm text-zinc-600">
+                          Loading your watchlist…
+                        </p>
+
+                      </div>
+                    )
+
+                  : watchlist.length === 0
+                    ? (
+                        <div className="at-surface rounded-[22px] p-6">
+
+                          <p className="text-sm font-medium text-zinc-300">
+                            Your radar is empty.
+                          </p>
 
 
-                    <MiniMetric
-                      label="Breakeven"
-                      value={
-                        analytics.breakeven
-                          .length
-                          .toString()
-                      }
-                    />
+                          <p className="mt-2 text-sm leading-6 text-zinc-600">
+                            Analyze a symbol and press Watch to keep it here.
+                          </p>
 
-                  </div>
+                        </div>
+                      )
+
+                    : radarMarkets.length === 0
+                      ? (
+                          <div className="at-surface rounded-[22px] p-6">
+
+                            <p className="text-sm text-zinc-500">
+                              Your watchlist is saved, but live analysis is temporarily unavailable.
+                            </p>
+
+                          </div>
+                        )
+
+                      : (
+                          <div className="grid gap-4 lg:grid-cols-3">
+
+                            {
+                              radarMarkets.map(
+                                (
+                                  market,
+                                ) => (
+                                  <RadarCard
+                                    key={
+                                      market.symbol
+                                    }
+
+                                    market={
+                                      market
+                                    }
+                                  />
+                                ),
+                              )
+                            }
+
+                          </div>
+                        )
+              }
+
+            </div>
+
+          </section>
+
+
+          {/* ===============================================
+              OPPORTUNITIES
+          =============================================== */}
+
+          <section
+            id="opportunities"
+            className="scroll-mt-28 pt-14"
+          >
+
+            <SectionHeader
+              eyebrow="Discovery"
+              title="Opportunities, not a data dump."
+              description="The scanner does the heavy work. The dashboard only surfaces candidates worth looking at."
+              action={
+                <Link
+                  href="/scanner"
+                  className="text-sm font-medium text-zinc-400 transition hover:text-white"
+                >
+                  Open scanner →
+                </Link>
+              }
+            />
+
+
+            <div className="at-surface mt-6 overflow-hidden rounded-[24px]">
+
+              {scannerLoading ? (
+
+                <div className="flex min-h-[190px] items-center p-7 sm:p-8">
+
+                  <p className="text-sm text-zinc-600">
+                    Checking your latest scanner results…
+                  </p>
+
+                </div>
+
+              ) : topOpportunities.length === 0 ? (
+
+                <div className="flex min-h-[190px] flex-col justify-center p-7 sm:p-8">
+
+                  <p className="text-lg font-medium text-white">
+                    Your discovery engine is ready.
+                  </p>
+
+
+                  <p className="mt-3 max-w-xl text-sm leading-7 text-zinc-500">
+                    Run the scanner and your strongest candidates will surface here automatically.
+                  </p>
 
 
                   <Link
-                    href="/ai-coach"
-                    className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-blue-400 transition hover:text-blue-300"
+                    href="/scanner"
+                    className="mt-6 w-fit text-sm font-semibold text-white transition hover:text-zinc-300"
                   >
-                    Open AI Coach
-                    <span>
-                      →
-                    </span>
+                    Run scanner →
                   </Link>
 
-                </Card>
+                </div>
 
-              </section>
+              ) : (
 
+                <div className="divide-y divide-white/5">
 
-              {/* ===========================================
-                  DIRECTION ANALYSIS
-              =========================================== */}
+                  {topOpportunities.map(
+                    (
+                      candidate,
+                      index,
+                    ) => (
 
-              <section id="execution" className="scroll-mt-28">
+                      <Link
+                        key={
+                          candidate.symbol
+                        }
 
-                <SectionHeading
-                  eyebrow="Execution"
-                  title="Long vs short"
-                  description="Compare your performance based on trade direction."
-                />
+                        href={`/market?symbol=${encodeURIComponent(
+                          candidate.symbol,
+                        )}`}
 
+                        className="group grid gap-5 p-6 transition hover:bg-white/[0.018] sm:grid-cols-[50px_minmax(0,1fr)_auto] sm:items-center sm:px-8"
+                      >
 
-                <div className="mt-4 grid gap-4 lg:grid-cols-2">
-
-                  <DirectionCard
-                    title="Long trades"
-
-                    trades={
-                      analytics.longStats
-                        .trades
-                    }
-
-                    winRate={
-                      analytics.longStats
-                        .winRate
-                    }
-
-                    pnl={
-                      analytics.longStats
-                        .pnl
-                    }
-
-                    averagePnl={
-                      analytics.longStats
-                        .averagePnl
-                    }
-
-                    direction="long"
-                  />
+                        <div className="text-sm font-semibold text-zinc-700">
+                          {String(
+                            index + 1,
+                          ).padStart(
+                            2,
+                            "0",
+                          )}
+                        </div>
 
 
-                  <DirectionCard
-                    title="Short trades"
+                        <div>
 
-                    trades={
-                      analytics.shortStats
-                        .trades
-                    }
+                          <div className="flex flex-wrap items-center gap-3">
 
-                    winRate={
-                      analytics.shortStats
-                        .winRate
-                    }
+                            <p className="text-lg font-semibold text-white">
+                              {candidate.symbol}
+                            </p>
 
-                    pnl={
-                      analytics.shortStats
-                        .pnl
-                    }
 
-                    averagePnl={
-                      analytics.shortStats
-                        .averagePnl
-                    }
+                            <span className="rounded-full border border-white/10 bg-white/[0.025] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-400">
+                              {candidate.action_state}
+                            </span>
 
-                    direction="short"
-                  />
+                          </div>
+
+
+                          <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-zinc-600">
+
+                            <span>
+                              {candidate.trade_horizon}
+                            </span>
+
+
+                            <span>
+                              {candidate.risk_level} risk
+                            </span>
+
+
+                            <span>
+                              R:R {candidate.reward_risk_ratio.toFixed(
+                                2,
+                              )}
+                            </span>
+
+                          </div>
+
+                        </div>
+
+
+                        <div className="sm:text-right">
+
+                          <p className="text-2xl font-semibold tracking-[-0.03em] text-white">
+                            {candidate.opportunity_score}
+                          </p>
+
+
+                          <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-700">
+                            Opportunity
+                          </p>
+
+
+                          <p
+                            className={`mt-2 text-xs font-medium ${
+                              candidate.change_percent > 0
+                                ? "text-emerald-400"
+                                : candidate.change_percent < 0
+                                  ? "text-red-400"
+                                  : "text-zinc-500"
+                            }`}
+                          >
+                            {candidate.change_percent > 0
+                              ? "+"
+                              : ""}
+
+                            {candidate.change_percent.toFixed(
+                              2,
+                            )}
+                            %
+                          </p>
+
+                        </div>
+
+                      </Link>
+
+                    ),
+                  )}
 
                 </div>
 
-              </section>
-
-
-              {/* ===========================================
-                  BEST / WORST TRADE
-              =========================================== */}
-
-              <section>
-
-                <SectionHeading
-                  eyebrow="Trade review"
-                  title="Performance extremes"
-                  description="Your strongest and weakest executions in the selected period."
-                />
-
-
-                <div className="mt-4 grid gap-4 lg:grid-cols-2">
-
-                  <TradeHighlight
-                    eyebrow="Best trade"
-
-                    result={
-                      analytics.bestTrade
-                    }
-
-                    type="best"
-                  />
-
-
-                  <TradeHighlight
-                    eyebrow="Worst trade"
-
-                    result={
-                      analytics.worstTrade
-                    }
-
-                    type="worst"
-                  />
-
-                </div>
-
-              </section>
-
-
-              {/* ===========================================
-                  STRATEGY
-              =========================================== */}
-
-              <section id="strategy" className="scroll-mt-28">
-
-                <SectionHeading
-                  eyebrow="Edge"
-                  title="Strategy performance"
-                  description="Strategies are ranked by expectancy instead of raw profit alone."
-                />
-
-
-                <div className="mt-4 grid gap-4 lg:grid-cols-2">
-
-                  <StrategyCard
-                    eyebrow="Strongest strategy"
-
-                    strategy={
-                      analytics.bestStrategy
-                    }
-                  />
-
-
-                  <StrategyCard
-                    eyebrow="Strategy to review"
-
-                    strategy={
-                      analytics.worstStrategy
-                    }
-                  />
-
-                </div>
-
-              </section>
-
-
-              {/* ===========================================
-                  TAGS
-              =========================================== */}
-
-              {(
-                analytics.bestTag
-                || analytics.worstTag
-              ) && (
-                <section>
-
-                  <SectionHeading
-                    eyebrow="Behavior"
-                    title="Journal tag patterns"
-                    description="See which behaviors and trading conditions have been associated with stronger results."
-                  />
-
-
-                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
-
-                    <TagCard
-                      eyebrow="Strongest tag"
-
-                      tag={
-                        analytics.bestTag
-                      }
-                    />
-
-
-                    <TagCard
-                      eyebrow="Tag to review"
-
-                      tag={
-                        analytics.worstTag
-                      }
-                    />
-
-                  </div>
-
-                </section>
               )}
 
+            </div>
 
-              {/* ===========================================
-                  RECENT TRADES
-              =========================================== */}
+          </section>
 
-              <div id="recent" className="scroll-mt-28">
-              <Card
-                padding="none"
-                className="overflow-hidden"
 
-                title={undefined}
-              >
+          {/* ===============================================
+              PERSONAL TRADING
+          =============================================== */}
 
-                <div className="flex flex-col gap-3 border-b border-zinc-900 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <section
+            id="trading"
+            className="scroll-mt-28 pt-14"
+          >
+
+            <SectionHeader
+              eyebrow="Your trading"
+              title="Personal insight, when useful."
+              description="Deep statistics belong in Analytics. Your dashboard keeps the personal picture concise."
+              action={
+                <Link
+                  href="/analytics"
+                  className="text-sm font-medium text-zinc-400 transition hover:text-white"
+                >
+                  Full analytics →
+                </Link>
+              }
+            />
+
+
+            <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.6fr)]">
+
+              <div className="at-surface rounded-[24px] p-7 sm:p-8">
+
+                {loading ? (
+                  <TradingLoading />
+                ) : tradingSummary.trades === 0 ? (
+                  <div className="flex min-h-[190px] flex-col justify-center">
+
+                    <p className="text-lg font-medium text-white">
+                      Your journal is ready.
+                    </p>
+
+
+                    <p className="mt-3 max-w-xl text-sm leading-7 text-zinc-500">
+                      Log trades consistently
+                      and A-Trader will surface
+                      useful personal patterns
+                      here when they become
+                      meaningful.
+                    </p>
+
+
+                    <Link
+                      href="/journal"
+                      className="mt-6 w-fit text-sm font-semibold text-white transition hover:text-zinc-300"
+                    >
+                      Log your first trade →
+                    </Link>
+
+                  </div>
+                ) : (
+                  <>
+
+                    <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
+
+                      <div>
+
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.19em] text-zinc-600">
+                          Journal snapshot
+                        </p>
+
+
+                        <p
+                          className={`mt-3 text-4xl font-semibold tracking-[-0.04em] ${
+                            tradingSummary.netPnl > 0
+                              ? "text-emerald-400"
+                              : tradingSummary.netPnl < 0
+                                ? "text-red-400"
+                                : "text-white"
+                          }`}
+                        >
+                          {tradingSummary.netPnl > 0
+                            ? "+"
+                            : ""}
+
+                          {formatMoney(
+                            tradingSummary.netPnl,
+                          )}
+                        </p>
+
+
+                        <p className="mt-2 text-sm text-zinc-500">
+                          Across{" "}
+                          {tradingSummary.trades}{" "}
+                          logged trade
+                          {tradingSummary.trades === 1
+                            ? ""
+                            : "s"}
+                        </p>
+
+                      </div>
+
+
+                      <div className="grid grid-cols-2 gap-8 sm:text-right">
+
+                        <div>
+
+                          <p className="text-2xl font-semibold text-white">
+                            {tradingSummary.winRate.toFixed(
+                              1,
+                            )}
+                            %
+                          </p>
+
+                          <p className="mt-1 text-xs text-zinc-600">
+                            Win rate
+                          </p>
+
+                        </div>
+
+
+                        <div>
+
+                          <p className="text-2xl font-semibold text-white">
+                            {tradingSummary.trades}
+                          </p>
+
+                          <p className="mt-1 text-xs text-zinc-600">
+                            Trades
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                    </div>
+
+
+                    <div className="mt-8 border-t border-white/5 pt-6">
+
+                      <p className="max-w-2xl text-sm leading-7 text-zinc-400">
+                        A-Trader will eventually
+                        use this space for the
+                        single personal pattern
+                        most worth your attention,
+                        rather than repeating your
+                        entire Analytics page.
+                      </p>
+
+                    </div>
+
+                  </>
+                )}
+
+              </div>
+
+
+              <div className="at-surface rounded-[24px] p-7 sm:p-8">
+
+                <div className="flex items-center justify-between gap-4">
 
                   <div>
 
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-400">
-                      Journal activity
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.19em] text-zinc-600">
+                      Recent
                     </p>
 
 
-                    <h2 className="mt-2 text-lg font-semibold text-white">
-                      Recent trades
-                    </h2>
-
-
-                    <p className="mt-1 text-sm text-zinc-600">
-                      Your latest executions from the selected period.
-                    </p>
+                    <h3 className="mt-2 text-lg font-semibold text-white">
+                      Latest activity
+                    </h3>
 
                   </div>
 
 
                   <Link
                     href="/journal"
-                    className="text-sm font-medium text-blue-400 transition hover:text-blue-300"
+                    className="text-xs font-medium text-zinc-500 transition hover:text-white"
                   >
-                    View journal →
+                    Journal →
                   </Link>
 
                 </div>
 
 
-                {recentTrades.length
-                === 0 ? (
-                  <div className="p-12 text-center">
+                <div className="mt-6">
 
-                    <p className="font-medium text-zinc-300">
-                      No trades in this period
-                    </p>
-
-
-                    <p className="mt-2 text-sm text-zinc-600">
-                      Change the date range or log another trade.
-                    </p>
-
-                  </div>
-                ) : (
-                  <div>
-
-                    <div className="hidden grid-cols-[1fr_110px_1.3fr_130px] border-b border-zinc-900 bg-black/30 px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-700 sm:grid">
-
-                      <span>
-                        Trade
-                      </span>
-
-                      <span>
-                        Direction
-                      </span>
-
-                      <span>
-                        Strategy
-                      </span>
-
-                      <span className="text-right">
-                        P&L
-                      </span>
-
+                  {loading ? (
+                    <div className="space-y-3">
+                      <LoadingLine />
+                      <LoadingLine />
+                      <LoadingLine />
                     </div>
-
-
-                    <div className="divide-y divide-zinc-900">
+                  ) : recentTrades.length === 0 ? (
+                    <p className="text-sm leading-7 text-zinc-600">
+                      No trades logged yet.
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-white/5">
 
                       {recentTrades.map(
                         ({
@@ -2300,72 +1999,33 @@ export default function Dashboard() {
                             key={
                               trade.id
                             }
-
-                            className="grid gap-3 px-6 py-5 transition hover:bg-zinc-900/30 sm:grid-cols-[1fr_110px_1.3fr_130px] sm:items-center"
+                            className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
                           >
 
                             <div>
 
-                              <p className="font-semibold text-zinc-100">
-                                {
-                                  trade.symbol
-                                }
+                              <p className="text-sm font-semibold text-zinc-200">
+                                {trade.symbol}
                               </p>
 
 
-                              <p className="mt-1 text-xs text-zinc-600">
-                                {
-                                  new Date(
-                                    trade.created_at,
-                                  )
-                                    .toLocaleDateString(
-                                      "en-CA",
-                                    )
-                                }
+                              <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-zinc-600">
+                                {trade.direction}
                               </p>
 
                             </div>
-
-
-                            <div>
-
-                              <StatusBadge
-                                tone={
-                                  trade.direction
-                                    .toLowerCase()
-                                  === "long"
-                                    ? "positive"
-                                    : "negative"
-                                }
-                              >
-                                {
-                                  trade.direction
-                                }
-                              </StatusBadge>
-
-                            </div>
-
-
-                            <p className="text-sm text-zinc-400">
-                              {getStrategyName(
-                                trade,
-                              )}
-                            </p>
 
 
                             <p
-                              className={`font-semibold sm:text-right ${
-                                pnl
-                                > 0
+                              className={`text-sm font-semibold ${
+                                pnl > 0
                                   ? "text-emerald-400"
-                                  : pnl
-                                    < 0
+                                  : pnl < 0
                                     ? "text-red-400"
-                                    : "text-white"
+                                    : "text-zinc-300"
                               }`}
                             >
-                              {pnl
-                              > 0
+                              {pnl > 0
                                 ? "+"
                                 : ""}
 
@@ -2379,67 +2039,38 @@ export default function Dashboard() {
                       )}
 
                     </div>
-
-                  </div>
-                )}
-
-              </Card>
-
-              </div>
-
-
-              {/* ===========================================
-                  QUICK ACTIONS
-              =========================================== */}
-
-              <section>
-
-                <SectionHeading
-                  eyebrow="Workspace"
-                  title="Continue your process"
-                  description="Move directly into the next part of your trading workflow."
-                />
-
-
-                <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
-                  <QuickAction
-                    href="/journal"
-                    number="01"
-                    title="Log a trade"
-                    description="Record your execution, strategy and psychology."
-                  />
-
-
-                  <QuickAction
-                    href="/replay"
-                    number="02"
-                    title="Practice replay"
-                    description="Practice historical sessions without seeing future candles."
-                  />
-
-
-                  <QuickAction
-                    href="/analytics"
-                    number="03"
-                    title="Review analytics"
-                    description="Dig deeper into strategies, risk and trading behavior."
-                  />
-
-
-                  <QuickAction
-                    href="/ai-coach"
-                    number="04"
-                    title="Ask AI Coach"
-                    description="Get personalized feedback from your journal data."
-                  />
+                  )}
 
                 </div>
 
-              </section>
+              </div>
 
             </div>
-          )}
+
+          </section>
+
+
+          {/* ===============================================
+              FOOTER ACTION
+          =============================================== */}
+
+          <div className="mt-14 flex flex-wrap items-center justify-between gap-5 border-t border-white/5 pt-7">
+
+            <p className="text-xs text-zinc-700">
+              A-Trader surfaces what matters.
+              The details stay available when
+              you need them.
+            </p>
+
+
+            <Link
+              href="/journal"
+              className="text-sm font-medium text-zinc-400 transition hover:text-white"
+            >
+              + Log trade
+            </Link>
+
+          </div>
 
         </div>
 
@@ -2451,35 +2082,46 @@ export default function Dashboard() {
 
 
 /* =========================================================
-   SECTION HEADING
+   SECTION HEADER
 ========================================================= */
 
-function SectionHeading({
+function SectionHeader({
   eyebrow,
   title,
   description,
+  action,
 }: {
   eyebrow: string;
   title: string;
-  description?: string;
+  description: string;
+  action?: React.ReactNode;
 }) {
   return (
-    <div>
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
 
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-400">
-        {eyebrow}
-      </p>
+      <div>
 
-
-      <h2 className="mt-2 text-xl font-semibold tracking-tight text-white">
-        {title}
-      </h2>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-600">
+          {eyebrow}
+        </p>
 
 
-      {description && (
-        <p className="mt-1.5 max-w-2xl text-sm leading-6 text-zinc-600">
+        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.025em] text-white">
+          {title}
+        </h2>
+
+
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">
           {description}
         </p>
+
+      </div>
+
+
+      {action && (
+        <div className="shrink-0">
+          {action}
+        </div>
       )}
 
     </div>
@@ -2488,35 +2130,27 @@ function SectionHeading({
 
 
 /* =========================================================
-   MINI METRIC
+   SIGNAL ROW
 ========================================================= */
 
-function MiniMetric({
+function SignalRow({
   label,
   value,
-  tone = "neutral",
 }: {
   label: string;
   value: string;
-  tone?: Tone;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-zinc-900 bg-black px-4 py-3">
+    <div>
 
-      <span className="text-sm text-zinc-600">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-zinc-700">
         {label}
-      </span>
+      </p>
 
 
-      <span
-        className={`text-sm font-semibold ${
-          getToneClass(
-            tone,
-          )
-        }`}
-      >
+      <p className="mt-1.5 text-sm font-medium text-zinc-300">
         {value}
-      </span>
+      </p>
 
     </div>
   );
@@ -2524,529 +2158,113 @@ function MiniMetric({
 
 
 /* =========================================================
-   DIRECTION CARD
+   RADAR CARD
 ========================================================= */
 
-function DirectionCard({
-  title,
-  trades,
-  winRate,
-  pnl,
-  averagePnl,
-  direction,
+function RadarCard({
+  market,
 }: {
-  title: string;
-  trades: number;
-  winRate: number;
-  pnl: number;
-  averagePnl: number;
-  direction:
-    | "long"
-    | "short";
+  market: DashboardMarket;
 }) {
+  const positive =
+    market.change_percent > 0;
+
+  const negative =
+    market.change_percent < 0;
+
+
   return (
-    <Card>
+    <Link
+      href={`/market?symbol=${encodeURIComponent(
+        market.symbol,
+      )}`}
+
+      className="at-surface group rounded-[22px] p-6 transition duration-300 hover:border-white/[0.12] hover:bg-white/[0.025]"
+    >
 
       <div className="flex items-start justify-between gap-4">
 
         <div>
 
-          <StatusBadge
-            tone={
-              direction
-              === "long"
-                ? "positive"
-                : "negative"
-            }
-          >
-            {direction
-              === "long"
-                ? "Long"
-                : "Short"}
-          </StatusBadge>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+            Watching
+          </p>
 
 
-          <h3 className="mt-4 text-xl font-semibold text-white">
-            {title}
+          <h3 className="mt-3 text-xl font-semibold tracking-[-0.02em] text-white">
+            {market.symbol}
           </h3>
 
         </div>
 
 
-        <div className="text-right">
-
-          <p
-            className={`text-lg font-semibold ${
-              pnl
-              > 0
-                ? "text-emerald-400"
-                : pnl
-                  < 0
-                  ? "text-red-400"
-                  : "text-white"
-            }`}
-          >
-            {pnl
-            > 0
-              ? "+"
-              : ""}
-
-            {formatMoney(
-              pnl,
-            )}
-          </p>
-
-
-          <p className="mt-1 text-[11px] text-zinc-600">
-            Net P&L
-          </p>
-
-        </div>
-
-      </div>
-
-
-      <div className="mt-6 grid grid-cols-3 gap-3">
-
-        <MiniMetricBlock
-          label="Trades"
-          value={
-            trades.toString()
-          }
-        />
-
-
-        <MiniMetricBlock
-          label="Win rate"
-          value={`${winRate.toFixed(
-            1,
-          )}%`}
-        />
-
-
-        <MiniMetricBlock
-          label="Avg P&L"
-          value={
-            formatMoney(
-              averagePnl,
-            )
-          }
-
-          tone={
-            toneFromNumber(
-              averagePnl,
-            )
-          }
-        />
-
-      </div>
-
-    </Card>
-  );
-}
-
-
-/* =========================================================
-   MINI METRIC BLOCK
-========================================================= */
-
-function MiniMetricBlock({
-  label,
-  value,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  tone?: Tone;
-}) {
-  return (
-    <div className="rounded-xl border border-zinc-900 bg-black p-4">
-
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-700">
-        {label}
-      </p>
-
-
-      <p
-        className={`mt-2 text-sm font-semibold ${
-          getToneClass(
-            tone,
-          )
-        }`}
-      >
-        {value}
-      </p>
-
-    </div>
-  );
-}
-
-
-/* =========================================================
-   TRADE HIGHLIGHT
-========================================================= */
-
-function TradeHighlight({
-  eyebrow,
-  result,
-  type,
-}: {
-  eyebrow: string;
-
-  result:
-    | {
-        trade: Trade;
-        pnl: number;
-      }
-    | null;
-
-  type:
-    | "best"
-    | "worst";
-}) {
-  return (
-    <Card>
-
-      <div className="flex items-center justify-between gap-4">
-
-        <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-zinc-600">
-          {eyebrow}
-        </p>
-
-
-        <StatusBadge
-          tone={
-            type
-            === "best"
-              ? "positive"
-              : "negative"
-          }
+        <p
+          className={`text-sm font-semibold ${
+            positive
+              ? "text-emerald-400"
+              : negative
+                ? "text-red-400"
+                : "text-zinc-400"
+          }`}
         >
-          {type
-          === "best"
-            ? "Strongest"
-            : "Weakest"}
-        </StatusBadge>
+          {positive ? "+" : ""}
+
+          {market.change_percent.toFixed(
+            2,
+          )}
+          %
+        </p>
 
       </div>
 
 
-      {!result ? (
-        <p className="mt-6 text-sm text-zinc-600">
-          No trade data yet.
-        </p>
-      ) : (
-        <>
+      <div className="mt-5 flex items-end justify-between gap-4">
 
-          <div className="mt-6 flex items-start justify-between gap-4">
-
-            <div>
-
-              <h3 className="text-2xl font-semibold tracking-tight text-white">
-                {
-                  result.trade
-                    .symbol
-                }
-              </h3>
-
-
-              <p className="mt-1.5 text-sm text-zinc-500">
-                {
-                  getStrategyName(
-                    result.trade,
-                  )
-                }
-                {" · "}
-                {
-                  result.trade
-                    .direction
-                }
-              </p>
-
-            </div>
-
-
-            <p
-              className={`text-xl font-semibold ${
-                result.pnl
-                > 0
-                  ? "text-emerald-400"
-                  : "text-red-400"
-              }`}
-            >
-              {result.pnl
-              > 0
-                ? "+"
-                : ""}
-
-              {formatMoney(
-                result.pnl,
-              )}
-            </p>
-
-          </div>
-
-
-          <p className="mt-6 text-xs text-zinc-700">
+        <p className="text-2xl font-semibold tracking-[-0.03em] text-zinc-100">
+          $
+          {market.price.toLocaleString(
+            "en-CA",
             {
-              new Date(
-                result.trade
-                  .created_at,
-              )
-                .toLocaleDateString(
-                  "en-CA",
-                )
-            }
-          </p>
-
-        </>
-      )}
-
-    </Card>
-  );
-}
-
-
-/* =========================================================
-   STRATEGY CARD
-========================================================= */
-
-function StrategyCard({
-  eyebrow,
-  strategy,
-}: {
-  eyebrow: string;
-
-  strategy:
-    | {
-        name: string;
-        trades: number;
-        wins: number;
-        losses: number;
-        pnl: number;
-        winRate: number;
-        expectancy: number;
-      }
-    | null;
-}) {
-  return (
-    <Card>
-
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-zinc-600">
-        {eyebrow}
-      </p>
-
-
-      {!strategy ? (
-        <p className="mt-5 text-sm text-zinc-600">
-          More strategy data is needed.
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            },
+          )}
         </p>
-      ) : (
-        <>
-
-          <h3 className="mt-4 text-2xl font-semibold tracking-tight text-white">
-            {
-              strategy.name
-            }
-          </h3>
 
 
-          <p
-            className={`mt-2 text-sm font-semibold ${
-              strategy.expectancy
-              > 0
-                ? "text-emerald-400"
-                : strategy.expectancy
-                  < 0
-                  ? "text-red-400"
-                  : "text-white"
-            }`}
-          >
-            {formatMoney(
-              strategy.expectancy,
-            )}
-            {" expectancy"}
-          </p>
-
-
-          <div className="mt-6 grid grid-cols-3 gap-3">
-
-            <MiniMetricBlock
-              label="Trades"
-              value={
-                strategy.trades
-                  .toString()
-              }
-            />
-
-
-            <MiniMetricBlock
-              label="Win rate"
-              value={`${strategy.winRate.toFixed(
-                1,
-              )}%`}
-            />
-
-
-            <MiniMetricBlock
-              label="Net P&L"
-              value={
-                formatMoney(
-                  strategy.pnl,
-                )
-              }
-
-              tone={
-                toneFromNumber(
-                  strategy.pnl,
-                )
-              }
-            />
-
-          </div>
-
-        </>
-      )}
-
-    </Card>
-  );
-}
-
-
-/* =========================================================
-   TAG CARD
-========================================================= */
-
-function TagCard({
-  eyebrow,
-  tag,
-}: {
-  eyebrow: string;
-
-  tag:
-    | {
-        name: string;
-        trades: number;
-        pnl: number;
-        averagePnl: number;
-        winRate: number;
-      }
-    | null;
-}) {
-  return (
-    <Card>
-
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-zinc-600">
-        {eyebrow}
-      </p>
-
-
-      {!tag ? (
-        <p className="mt-5 text-sm text-zinc-600">
-          Add tags to your trades to unlock this analysis.
+        <p className="text-xs font-medium text-zinc-500">
+          {market.opportunity_score}/100
         </p>
-      ) : (
-        <>
 
-          <h3 className="mt-4 text-2xl font-semibold tracking-tight text-white">
-            {
-              tag.name
-            }
-          </h3>
+      </div>
 
 
-          <p
-            className={`mt-2 text-sm font-semibold ${
-              tag.averagePnl
-              > 0
-                ? "text-emerald-400"
-                : tag.averagePnl
-                  < 0
-                  ? "text-red-400"
-                  : "text-white"
-            }`}
-          >
-            {formatMoney(
-              tag.averagePnl,
-            )}
-            {" average"}
-          </p>
+      <div className="mt-5 flex flex-wrap gap-2">
 
-
-          <div className="mt-6 grid grid-cols-2 gap-3">
-
-            <MiniMetricBlock
-              label="Trades"
-              value={
-                tag.trades
-                  .toString()
-              }
-            />
-
-
-            <MiniMetricBlock
-              label="Win rate"
-              value={`${tag.winRate.toFixed(
-                1,
-              )}%`}
-            />
-
-          </div>
-
-        </>
-      )}
-
-    </Card>
-  );
-}
-
-
-/* =========================================================
-   QUICK ACTION
-========================================================= */
-
-function QuickAction({
-  href,
-  number,
-  title,
-  description,
-}: {
-  href: string;
-  number: string;
-  title: string;
-  description: string;
-}) {
-  return (
-    <Link
-      href={
-        href
-      }
-
-      className="group rounded-2xl border border-zinc-900 bg-zinc-950/70 p-5 transition-all hover:-translate-y-0.5 hover:border-zinc-700 hover:bg-zinc-950"
-    >
-
-      <div className="flex items-start justify-between gap-4">
-
-        <span className="text-[10px] font-semibold tracking-[0.14em] text-zinc-700">
-          {number}
+        <span className="rounded-full border border-white/10 bg-white/[0.025] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.11em] text-zinc-400">
+          {market.signal}
         </span>
 
 
-        <span className="text-zinc-700 transition-all group-hover:translate-x-1 group-hover:text-white">
-          →
+        <span className="rounded-full border border-white/10 bg-white/[0.025] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.11em] text-zinc-500">
+          {market.trade_horizon}
+        </span>
+
+
+        <span className="rounded-full border border-white/10 bg-white/[0.025] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.11em] text-zinc-500">
+          RSI {market.rsi.toFixed(0)}
         </span>
 
       </div>
 
 
-      <h3 className="mt-6 font-semibold text-zinc-200 transition group-hover:text-white">
-        {title}
-      </h3>
+      <div className="mt-6 border-t border-white/5 pt-4">
 
+        <p className="text-xs font-medium text-zinc-600 transition group-hover:text-zinc-400">
+          Open analysis →
+        </p>
 
-      <p className="mt-2 text-sm leading-6 text-zinc-600">
-        {description}
-      </p>
+      </div>
 
     </Link>
   );
@@ -3054,34 +2272,189 @@ function QuickAction({
 
 
 /* =========================================================
-   EMPTY CHART
+   MARKET CARD
 ========================================================= */
 
-function EmptyChart() {
-  return (
-    <div className="mt-4 flex h-80 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-900 bg-black/30 px-6 text-center">
+function MarketCard({
+  market,
+}: {
+  market: DashboardMarket;
+}) {
+  const positive =
+    market.change_percent > 0;
 
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-900 bg-zinc-950 text-zinc-600">
-        ↗
+  const negative =
+    market.change_percent < 0;
+
+
+  return (
+    <Link
+      href={`/market?symbol=${encodeURIComponent(
+        market.symbol,
+      )}`}
+
+      className="at-surface group flex min-h-[210px] flex-col rounded-[22px] p-6 transition duration-300 hover:border-white/[0.12] hover:bg-white/[0.025]"
+    >
+
+      <div className="flex items-start justify-between gap-4">
+
+        <div>
+
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+            Benchmark
+          </p>
+
+
+          <h3 className="mt-3 text-xl font-semibold tracking-[-0.02em] text-white">
+            {market.symbol}
+          </h3>
+
+        </div>
+
+
+        <p
+          className={`text-sm font-semibold ${
+            positive
+              ? "text-emerald-400"
+              : negative
+                ? "text-red-400"
+                : "text-zinc-400"
+          }`}
+        >
+          {
+            positive
+              ? "+"
+              : ""
+          }
+
+          {market.change_percent.toFixed(
+            2,
+          )}
+          %
+        </p>
+
       </div>
 
 
-      <p className="mt-4 font-medium text-zinc-300">
-        No performance data
+      <p className="mt-5 text-2xl font-semibold tracking-[-0.03em] text-zinc-100">
+        $
+        {market.price.toLocaleString(
+          "en-CA",
+          {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          },
+        )}
       </p>
 
 
-      <p className="mt-2 max-w-sm text-sm leading-6 text-zinc-600">
-        Log trades or select a wider date range to build your equity curve.
+      <div className="mt-4 flex flex-wrap gap-2">
+
+        <span className="rounded-full border border-white/10 bg-white/[0.025] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.11em] text-zinc-400">
+          {market.signal}
+        </span>
+
+
+        <span className="rounded-full border border-white/10 bg-white/[0.025] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.11em] text-zinc-500">
+          RSI{" "}
+          {market.rsi.toFixed(
+            0,
+          )}
+        </span>
+
+      </div>
+
+
+      <div className="mt-auto flex items-end justify-between gap-4 pt-7">
+
+        <div>
+
+          <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-700">
+            5 day
+          </p>
+
+
+          <p className="mt-1 text-xs font-medium text-zinc-400">
+            {
+              market.performance_5d_percent
+              > 0
+                ? "+"
+                : ""
+            }
+
+            {market.performance_5d_percent.toFixed(
+              2,
+            )}
+            %
+          </p>
+
+        </div>
+
+
+        <span className="text-xs font-medium text-zinc-600 transition group-hover:text-zinc-300">
+          Analyze →
+        </span>
+
+      </div>
+
+    </Link>
+  );
+}
+
+
+function MarketLoadingCard() {
+  return (
+    <div className="at-surface min-h-[210px] animate-pulse rounded-[22px] p-6">
+
+      <div className="h-2.5 w-20 rounded-full bg-white/[0.05]" />
+
+      <div className="mt-5 h-6 w-16 rounded-lg bg-white/[0.055]" />
+
+      <div className="mt-5 h-8 w-28 rounded-lg bg-white/[0.05]" />
+
+      <div className="mt-8 h-3 w-36 rounded-full bg-white/[0.035]" />
+
+    </div>
+  );
+}
+
+
+/* =========================================================
+   WORKSPACE CARD
+========================================================= */
+
+function WorkspaceCard({
+  label,
+  title,
+  description,
+  footer,
+}: {
+  label: string;
+  title: string;
+  description: string;
+  footer: string;
+}) {
+  return (
+    <div className="at-surface group flex min-h-[210px] flex-col rounded-[22px] p-6 transition duration-300 hover:border-white/[0.12]">
+
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+        {label}
       </p>
 
 
-      <Link
-        href="/journal"
-        className="mt-5 text-sm font-medium text-blue-400 transition hover:text-blue-300"
-      >
-        Log a trade →
-      </Link>
+      <h3 className="mt-5 text-lg font-semibold tracking-[-0.02em] text-zinc-100">
+        {title}
+      </h3>
+
+
+      <p className="mt-3 text-sm leading-6 text-zinc-500">
+        {description}
+      </p>
+
+
+      <p className="mt-auto pt-7 text-[11px] text-zinc-700">
+        {footer}
+      </p>
 
     </div>
   );
@@ -3092,40 +2465,23 @@ function EmptyChart() {
    LOADING
 ========================================================= */
 
-function DashboardLoading() {
+function TradingLoading() {
   return (
-    <div className="space-y-8">
+    <div className="flex min-h-[190px] animate-pulse flex-col justify-center">
 
-      <div className="h-20 animate-pulse rounded-2xl border border-zinc-900 bg-zinc-950/70" />
+      <div className="h-3 w-28 rounded-full bg-white/[0.05]" />
 
+      <div className="mt-5 h-10 w-44 rounded-xl bg-white/[0.055]" />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
-        {
-          Array.from({
-            length:
-              8,
-          }).map(
-            (
-              _,
-              index,
-            ) => (
-              <div
-                key={
-                  index
-                }
-
-                className="h-32 animate-pulse rounded-2xl border border-zinc-900 bg-zinc-950/70"
-              />
-            ),
-          )
-        }
-
-      </section>
-
-
-      <div className="h-96 animate-pulse rounded-2xl border border-zinc-900 bg-zinc-950/70" />
+      <div className="mt-4 h-3 w-64 max-w-full rounded-full bg-white/[0.04]" />
 
     </div>
+  );
+}
+
+
+function LoadingLine() {
+  return (
+    <div className="h-14 animate-pulse rounded-xl bg-white/[0.025]" />
   );
 }

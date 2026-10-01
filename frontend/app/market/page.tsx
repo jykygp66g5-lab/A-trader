@@ -21,12 +21,8 @@ import StatusBadge from "@/components/ui/StatusBadge";
 
 import MarketSearch from "@/components/market/MarketSearch";
 import MarketHero from "@/components/market/MarketHero";
-import OpportunitySection from "@/components/market/OpportunitySection";
-import TradePlanSection from "@/components/market/TradePlanSection";
-import TradeHorizonSection from "@/components/market/TradeHorizonSection";
+import MarketDecisionSection from "@/components/market/MarketDecisionSection";
 import TechnicalDataSection from "@/components/market/TechnicalDataSection";
-import MarketSummarySection from "@/components/market/MarketSummarySection";
-import InsightsSection from "@/components/market/InsightsSection";
 import MarketDisclaimer from "@/components/market/MarketDisclaimer";
 
 import ChartControls from "@/components/market/chart/ChartControls";
@@ -47,6 +43,12 @@ import useMarketHistory from "@/hooks/market/useMarketHistory";
 import type {
   MarketAnalysis,
 } from "@/lib/market/types";
+
+import {
+  addWatchlistSymbol,
+  getWatchlist,
+  removeWatchlistSymbol,
+} from "@/lib/watchlist/api";
 
 /* =========================================================
    DEFAULT CHART SETTINGS
@@ -71,13 +73,13 @@ const DEFAULT_OVERLAYS: OverlayVisibility = {
 
 
 const DEFAULT_PATTERNS: PatternVisibility = {
-  breakouts: true,
-  breakdowns: true,
+  breakouts: false,
+  breakdowns: false,
 
-  doubleBottoms: true,
-  doubleTops: true,
+  doubleBottoms: false,
+  doubleTops: false,
 
-  movingAverageCrosses: true,
+  movingAverageCrosses: false,
 
   pivots: false,
 };
@@ -90,13 +92,10 @@ const DEFAULT_PATTERNS: PatternVisibility = {
 
 
 const MARKET_SECTIONS = [
-  { id: "opportunity", label: "Opportunity" },
-  { id: "horizon", label: "Horizon" },
-  { id: "plan", label: "Plan" },
+  { id: "opportunity", label: "Overview" },
   { id: "chart", label: "Chart" },
-  { id: "technical", label: "Technical" },
-  { id: "summary", label: "Summary" },
-  { id: "insights", label: "Insights" },
+  { id: "plan", label: "Setup" },
+  { id: "technical", label: "Deep analysis" },
 ] as const;
 
 export default function MarketPage() {
@@ -149,6 +148,30 @@ function MarketPageContent() {
     useRef<string | null>(
       null,
     );
+
+
+  const [
+    watchlistSymbols,
+    setWatchlistSymbols,
+  ] = useState<string[]>(
+    [],
+  );
+
+
+  const [
+    watchlistLoading,
+    setWatchlistLoading,
+  ] = useState(
+    true,
+  );
+
+
+  const [
+    watchlistSaving,
+    setWatchlistSaving,
+  ] = useState(
+    false,
+  );
 
 
   /* =======================================================
@@ -231,6 +254,162 @@ function MarketPageContent() {
     createAlert,
     deleteAlert,
   } = useAlerts();
+
+
+  /* =======================================================
+     WATCHLIST
+  ======================================================= */
+
+  useEffect(
+    () => {
+      let cancelled =
+        false;
+
+
+      async function loadWatchlist() {
+        try {
+          setWatchlistLoading(
+            true,
+          );
+
+
+          const items =
+            await getWatchlist();
+
+
+          if (cancelled) {
+            return;
+          }
+
+
+          setWatchlistSymbols(
+            items.map(
+              (
+                item,
+              ) =>
+                item.symbol
+                  .trim()
+                  .toUpperCase(),
+            ),
+          );
+
+        } catch {
+          // Watchlist is supplementary.
+          // Market analysis remains usable.
+
+        } finally {
+          if (!cancelled) {
+            setWatchlistLoading(
+              false,
+            );
+          }
+        }
+      }
+
+
+      void loadWatchlist();
+
+
+      return () => {
+        cancelled =
+          true;
+      };
+    },
+    [],
+  );
+
+
+  const handleWatchlistToggle =
+    useCallback(
+      async (
+        tickerInput: string,
+      ) => {
+        const ticker =
+          tickerInput
+            .trim()
+            .toUpperCase();
+
+
+        if (
+          !ticker
+          || watchlistSaving
+        ) {
+          return;
+        }
+
+
+        const currentlyWatching =
+          watchlistSymbols.includes(
+            ticker,
+          );
+
+
+        try {
+          setWatchlistSaving(
+            true,
+          );
+
+
+          if (currentlyWatching) {
+            await removeWatchlistSymbol(
+              ticker,
+            );
+
+
+            setWatchlistSymbols(
+              (
+                current,
+              ) =>
+                current.filter(
+                  (
+                    item,
+                  ) =>
+                    item !== ticker,
+                ),
+            );
+
+          } else {
+            await addWatchlistSymbol(
+              ticker,
+            );
+
+
+            setWatchlistSymbols(
+              (
+                current,
+              ) =>
+                current.includes(
+                  ticker,
+                )
+                  ? current
+                  : [
+                      ...current,
+                      ticker,
+                    ],
+            );
+          }
+
+        } catch (
+          err
+        ) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Could not update your watchlist.",
+          );
+
+        } finally {
+          setWatchlistSaving(
+            false,
+          );
+        }
+      },
+      [
+        watchlistSaving,
+        watchlistSymbols,
+        setError,
+      ],
+    );
 
 
   /* =======================================================
@@ -493,7 +672,7 @@ function MarketPageContent() {
 
       <main className="min-w-0 flex-1">
 
-        <div className="mx-auto w-full max-w-[1800px] px-6 py-8 lg:px-10 lg:py-10">
+        <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
 
           <PageHeader
             eyebrow="Market intelligence"
@@ -698,34 +877,36 @@ function MarketPageContent() {
                     onDeleteAlert={
                       deleteAlert
                     }
-                  />
 
+                    watchlisted={
+                      watchlistSymbols.includes(
+                        analysis.symbol
+                          .trim()
+                          .toUpperCase(),
+                      )
+                    }
 
-                  <div id="opportunity" className="scroll-mt-28">
-                  <OpportunitySection
-                    analysis={
-                      analysis
+                    watchlistLoading={
+                      watchlistLoading
+                    }
+
+                    watchlistSaving={
+                      watchlistSaving
+                    }
+
+                    onToggleWatchlist={
+                      handleWatchlistToggle
                     }
                   />
-                  </div>
 
 
-                  <div id="horizon" className="scroll-mt-28">
-                  <TradeHorizonSection
-                    analysis={
-                      analysis
-                    }
-                  />
-                  </div>
+                  
 
 
-                  <div id="plan" className="scroll-mt-28">
-                  <TradePlanSection
-                    analysis={
-                      analysis
-                    }
-                  />
-                  </div>
+                  
+
+
+                  
 
 
                   {/* =====================================
@@ -974,31 +1155,57 @@ function MarketPageContent() {
                   </section>
 
 
-                  <div id="technical" className="scroll-mt-28">
-                  <TechnicalDataSection
-                    analysis={
-                      analysis
-                    }
-                  />
+                  <div id="plan" className="scroll-mt-28">
+                    <MarketDecisionSection
+                      analysis={
+                        analysis
+                      }
+                    />
                   </div>
 
 
-                  <div id="summary" className="scroll-mt-28">
-                  <MarketSummarySection
-                    analysis={
-                      analysis
-                    }
-                  />
-                  </div>
+                  <details
+                    id="technical"
+                    className="group scroll-mt-28 overflow-hidden rounded-[24px] border border-white/[0.07] bg-white/[0.015] transition-colors open:border-white/[0.10] open:bg-white/[0.02]"
+                  >
+
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-5 outline-none transition hover:bg-white/[0.018] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/50 sm:gap-6 sm:px-7">
+
+                      <div>
+
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+                          Deep analysis
+                        </p>
+
+                        <p className="mt-1.5 text-base font-semibold text-zinc-200">
+                          Full technical breakdown
+                        </p>
+
+                        <p className="mt-1 text-sm text-zinc-600">
+                          Moving averages, momentum, volume and structural levels.
+                        </p>
+
+                      </div>
+
+                      <span
+                        aria-hidden="true"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.07] bg-black/30 text-sm text-zinc-500 transition duration-200 group-hover:text-zinc-300 group-open:rotate-180 group-open:border-white/[0.10]"
+                      >
+                        ↓
+                      </span>
+
+                    </summary>
 
 
-                  <div id="insights" className="scroll-mt-28">
-                  <InsightsSection
-                    analysis={
-                      analysis
-                    }
-                  />
-                  </div>
+                    <div className="border-t border-white/5 px-5 py-6 sm:px-7 sm:py-7">
+                      <TechnicalDataSection
+                        analysis={
+                          analysis
+                        }
+                      />
+                    </div>
+
+                  </details>
 
 
                   <MarketDisclaimer />
@@ -1033,7 +1240,7 @@ function MarketPageFallback() {
 
       <main className="min-w-0 flex-1">
 
-        <div className="mx-auto w-full max-w-[1800px] px-6 py-8 lg:px-10 lg:py-10">
+        <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
 
           <PageHeader
             eyebrow="Market intelligence"

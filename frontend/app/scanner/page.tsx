@@ -3861,70 +3861,147 @@ function ScannerResultCard({
     ScannerMode;
 }) {
   const primaryScore =
-    mode
-    === "aggressive"
+    mode === "aggressive"
       ? result.aggressive_score
       : result.opportunity_score;
+
+  const hasDetails =
+    (
+      result.ml_rank !== null
+      && result.ml_universe_size !== null
+    )
+    || result.target_price !== null
+    || result.invalidation_price !== null
+    || result.reasons.length > 0
+    || result.warnings.length > 0;
 
 
   return (
     <Card
-      className="transition-all hover:-translate-y-0.5 hover:border-zinc-700"
+      className="
+        group/card
+        overflow-hidden
+        transition-all
+        duration-200
+        hover:border-zinc-800
+        hover:bg-zinc-950/90
+      "
     >
 
-      <div className="flex items-start justify-between gap-4">
+      {/* ===============================================
+          PRIMARY DECISION LAYER
+      =============================================== */}
 
-        <div>
+      <div className="flex items-start justify-between gap-5">
 
-          <Link
-            href={{
-              pathname:
-                "/market",
+        <div className="min-w-0">
 
-              query: {
-                symbol:
-                  result.symbol,
-              },
-            }}
+          <div className="flex flex-wrap items-center gap-2">
 
-            className="text-2xl font-semibold tracking-tight text-white transition hover:text-blue-400"
-          >
-            {
-              result.symbol
-            }
-          </Link>
+            <Link
+              href={{
+                pathname:
+                  "/market",
+
+                query: {
+                  symbol:
+                    result.symbol,
+                },
+              }}
+
+              className="
+                text-2xl
+                font-semibold
+                tracking-[-0.03em]
+                text-white
+                transition
+                hover:text-blue-400
+              "
+            >
+              {
+                result.symbol
+              }
+            </Link>
 
 
-          <p className="mt-1.5 text-sm text-zinc-600">
-            {
-              result.trend
-            }
-          </p>
+            <StatusBadge
+              tone={
+                getActionTone(
+                  result.action_state,
+                )
+              }
+            >
+              {
+                result.action_state
+              }
+            </StatusBadge>
+
+          </div>
+
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+
+            <span
+              className={`
+                rounded-lg
+                border
+                px-2
+                py-0.5
+                text-[11px]
+                font-semibold
+                ${getHorizonClass(
+                  result.trade_horizon,
+                )}
+              `}
+            >
+              {
+                result.trade_horizon
+              }
+            </span>
+
+
+            <span className="text-xs text-zinc-600">
+              {
+                result.trade_duration
+              }
+            </span>
+
+          </div>
 
         </div>
 
 
-        <div className="text-right">
+        <div className="shrink-0 text-right">
 
-          <p
-            className={`text-3xl font-semibold tracking-tight ${getScoreClass(
-              primaryScore,
-            )}`}
-          >
-            {
-              primaryScore
-            }
+          <div className="flex items-baseline justify-end">
 
-            <span className="ml-0.5 text-sm text-zinc-700">
+            <p
+              className={`
+                text-[32px]
+                font-semibold
+                leading-none
+                tracking-[-0.04em]
+                ${getScoreClass(
+                  primaryScore,
+                )}
+              `}
+            >
+              {
+                primaryScore
+              }
+            </p>
+
+
+            <span className="ml-1 text-sm font-medium text-zinc-700">
               /100
             </span>
-          </p>
+
+          </div>
 
 
-          <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-700">
+          <p className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-700">
             {
-              mode
-              === "aggressive"
+              mode === "aggressive"
                 ? "Aggressive"
                 : "Opportunity"
             }
@@ -3935,103 +4012,15 @@ function ScannerResultCard({
       </div>
 
 
-      <div className="mt-5 flex flex-wrap items-center gap-2">
+      {/* ===============================================
+          PRICE + RISK / REWARD
+      =============================================== */}
 
-        <span
-          className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${getHorizonClass(
-            result.trade_horizon,
-          )}`}
-        >
-          {
-            result.trade_horizon
-          }
-        </span>
-
-
-        <StatusBadge
-          tone={
-            getActionTone(
-              result.action_state,
-            )
-          }
-        >
-          {
-            result.action_state
-          }
-        </StatusBadge>
-
-      </div>
-
-
-      <p className="mt-2 text-xs text-zinc-700">
-        {
-          result.trade_duration
-        }
-      </p>
-
-
-      {result.ml_rank !== null
-      && result.ml_universe_size !== null
-      && (
-        <div className="mt-4 rounded-xl border border-blue-950/80 bg-blue-950/15 px-4 py-3">
-
-          <div className="flex items-center justify-between gap-4">
-
-            <div>
-
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-blue-500">
-                ML Opportunity
-              </p>
-
-
-              <p className="mt-1 text-sm font-semibold text-zinc-200">
-                #{result.ml_rank} of {result.ml_universe_size}
-              </p>
-
-            </div>
-
-
-            <div className="text-right">
-
-              <p
-                className={`text-lg font-semibold ${
-                  result.ml_percentile !== null
-                    ? getScoreClass(
-                        result.ml_percentile,
-                      )
-                    : "text-zinc-500"
-                }`}
-              >
-                {
-                  result.ml_percentile !== null
-                    ? `${result.ml_percentile.toFixed(1)}%`
-                    : "—"
-                }
-              </p>
-
-
-              <p className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-zinc-700">
-                Percentile
-              </p>
-
-            </div>
-
-          </div>
-
-
-          <p className="mt-2 text-[11px] leading-5 text-zinc-600">
-            Relative 5-day opportunity rank across the validated ML universe.
-          </p>
-
-        </div>
-      )}
-
-
-      <div className="mt-6 flex items-end justify-between gap-4">
+      <div className="mt-6 flex items-end justify-between gap-5">
 
         <div>
 
-          <p className="text-xl font-semibold text-white">
+          <p className="text-[22px] font-semibold tracking-[-0.025em] text-white">
             {
               formatMoney(
                 result.price,
@@ -4041,14 +4030,19 @@ function ScannerResultCard({
 
 
           <p
-            className={`mt-1 text-sm font-medium ${
-              (
-                result.change_percent
-                ?? 0
-              ) >= 0
-                ? "text-emerald-400"
-                : "text-red-400"
-            }`}
+            className={`
+              mt-1
+              text-sm
+              font-medium
+              ${
+                (
+                  result.change_percent
+                  ?? 0
+                ) >= 0
+                  ? "text-emerald-400"
+                  : "text-red-400"
+              }
+            `}
           >
             {
               formatPercent(
@@ -4063,9 +4057,14 @@ function ScannerResultCard({
         <div className="text-right">
 
           <p
-            className={`text-lg font-semibold ${getRatioClass(
-              result.reward_risk_ratio,
-            )}`}
+            className={`
+              text-xl
+              font-semibold
+              tracking-[-0.02em]
+              ${getRatioClass(
+                result.reward_risk_ratio,
+              )}
+            `}
           >
             {
               result.reward_risk_ratio
@@ -4077,7 +4076,7 @@ function ScannerResultCard({
           </p>
 
 
-          <p className="mt-1 text-[10px] uppercase tracking-[0.12em] text-zinc-700">
+          <p className="mt-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-zinc-700">
             Reward / Risk
           </p>
 
@@ -4086,242 +4085,508 @@ function ScannerResultCard({
       </div>
 
 
-      <div className="mt-5 grid grid-cols-3 gap-2">
+      {/* ===============================================
+          CORE SIGNALS
+      =============================================== */}
 
-        <SmallMetric
-          label="Trend"
+      <div className="mt-5 grid grid-cols-3 overflow-hidden rounded-xl border border-white/[0.06] bg-black/30">
 
-          value={`${result.trend_score}/100`}
+        <div className="px-3 py-3.5">
 
-          valueClass={
-            getScoreClass(
+          <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-zinc-700">
+            Trend
+          </p>
+
+
+          <p
+            className={`mt-1.5 text-sm font-semibold ${getScoreClass(
               result.trend_score,
-            )
-          }
-        />
+            )}`}
+          >
+            {
+              result.trend_score
+            }
+            /100
+          </p>
+
+        </div>
 
 
-        <SmallMetric
-          label="Intraday"
+        <div className="border-l border-white/[0.06] px-3 py-3.5">
 
-          value={`${result.intraday_score}/100`}
+          <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-zinc-700">
+            Intraday
+          </p>
 
-          valueClass={
-            getScoreClass(
+
+          <p
+            className={`mt-1.5 text-sm font-semibold ${getScoreClass(
               result.intraday_score,
-            )
-          }
-        />
+            )}`}
+          >
+            {
+              result.intraday_score
+            }
+            /100
+          </p>
+
+        </div>
 
 
-        <SmallMetric
-          label="Risk"
+        <div className="border-l border-white/[0.06] px-3 py-3.5">
 
-          value={
-            result.risk_level
-          }
+          <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-zinc-700">
+            Risk
+          </p>
 
-          valueClass={
-            getRiskClass(
+
+          <p
+            className={`mt-1.5 text-sm font-semibold ${getRiskClass(
               result.risk_level,
+            )}`}
+          >
+            {
+              result.risk_level
+            }
+          </p>
+
+        </div>
+
+      </div>
+
+
+      {/* ===============================================
+          QUICK READ
+      =============================================== */}
+
+      {
+        result.reasons.length > 0
+        && (
+          <div className="mt-4 flex items-start gap-2.5">
+
+            <span
+              aria-hidden="true"
+              className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400"
+            />
+
+
+            <div className="min-w-0">
+
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-zinc-700">
+                Why it stands out
+              </p>
+
+
+              <p className="mt-1 text-[13px] leading-5 text-zinc-400">
+                {
+                  result.reasons[
+                    0
+                  ]
+                }
+              </p>
+
+            </div>
+
+          </div>
+        )
+      }
+
+
+      {/* ===============================================
+          ACTIONS
+      =============================================== */}
+
+      <div className="mt-5 grid grid-cols-2 gap-2">
+
+        <Link
+          href={{
+            pathname:
+              "/market",
+
+            query: {
+              symbol:
+                result.symbol,
+            },
+          }}
+
+          className="
+            flex
+            min-h-11
+            items-center
+            justify-center
+            rounded-xl
+            border
+            border-zinc-800
+            bg-zinc-900
+            px-4
+            text-center
+            text-sm
+            font-semibold
+            text-white
+            transition
+            hover:border-zinc-700
+            hover:bg-white
+            hover:text-black
+          "
+        >
+          Open analysis
+        </Link>
+
+
+        {
+          hasDetails
+          ? (
+              <details className="group/details relative">
+
+                <summary
+                  className="
+                    flex
+                    min-h-11
+                    cursor-pointer
+                    list-none
+                    items-center
+                    justify-center
+                    gap-2
+                    rounded-xl
+                    border
+                    border-white/[0.07]
+                    bg-white/[0.02]
+                    px-4
+                    text-sm
+                    font-medium
+                    text-zinc-400
+                    transition
+                    hover:border-white/[0.12]
+                    hover:bg-white/[0.04]
+                    hover:text-zinc-200
+                  "
+                >
+                  <span className="group-open/details:hidden">
+                    Details
+                  </span>
+
+                  <span className="hidden group-open/details:inline">
+                    Hide details
+                  </span>
+
+                  <span
+                    aria-hidden="true"
+                    className="text-xs transition-transform duration-200 group-open/details:rotate-180"
+                  >
+                    ↓
+                  </span>
+
+                </summary>
+
+
+                {/* =====================================
+                    EXPANDED DETAIL LAYER
+                ===================================== */}
+
+                <div
+                  className="
+                    col-span-2
+                    mt-3
+                    rounded-2xl
+                    border
+                    border-white/[0.07]
+                    bg-black/35
+                    p-4
+                  "
+                >
+
+                  {/* ML */}
+
+                  {
+                    result.ml_rank !== null
+                    && result.ml_universe_size !== null
+                    && (
+                      <div className="flex items-center justify-between gap-4 border-b border-white/[0.06] pb-4">
+
+                        <div>
+
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-blue-500">
+                            ML opportunity
+                          </p>
+
+
+                          <p className="mt-1.5 text-sm font-semibold text-zinc-300">
+                            #
+                            {
+                              result.ml_rank
+                            }
+                            {" "}of{" "}
+                            {
+                              result.ml_universe_size
+                            }
+                          </p>
+
+                        </div>
+
+
+                        <div className="text-right">
+
+                          <p
+                            className={`
+                              text-lg
+                              font-semibold
+                              ${
+                                result.ml_percentile !== null
+                                  ? getScoreClass(
+                                      result.ml_percentile,
+                                    )
+                                  : "text-zinc-500"
+                              }
+                            `}
+                          >
+                            {
+                              result.ml_percentile !== null
+                                ? `${result.ml_percentile.toFixed(
+                                    1,
+                                  )}%`
+                                : "—"
+                            }
+                          </p>
+
+
+                          <p className="mt-0.5 text-[9px] uppercase tracking-[0.12em] text-zinc-700">
+                            Percentile
+                          </p>
+
+                        </div>
+
+                      </div>
+                    )
+                  }
+
+
+                  {/* TARGET / INVALIDATION */}
+
+                  <div className="grid grid-cols-2 gap-3 py-4">
+
+                    <div>
+
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-zinc-700">
+                        Target
+                      </p>
+
+
+                      <p className="mt-1.5 font-semibold text-emerald-400">
+                        {
+                          formatMoney(
+                            result.target_price,
+                          )
+                        }
+                      </p>
+
+
+                      <p className="mt-1 text-xs text-emerald-500/80">
+                        {
+                          formatPercent(
+                            result.potential_upside_percent,
+                          )
+                        }
+                      </p>
+
+                    </div>
+
+
+                    <div className="border-l border-white/[0.06] pl-4">
+
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-zinc-700">
+                        Invalidation
+                      </p>
+
+
+                      <p className="mt-1.5 font-semibold text-red-400">
+                        {
+                          formatMoney(
+                            result.invalidation_price,
+                          )
+                        }
+                      </p>
+
+
+                      <p className="mt-1 text-xs text-red-500/80">
+                        -
+                        {
+                          result.potential_downside_percent
+                            .toFixed(
+                              2,
+                            )
+                        }
+                        %
+                      </p>
+
+                    </div>
+
+                  </div>
+
+
+                  {/* HORIZON FIT */}
+
+                  <div className="border-t border-white/[0.06] pt-4">
+
+                    <div className="flex items-center justify-between gap-3">
+
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-zinc-700">
+                        Horizon fit
+                      </p>
+
+
+                      <p className="text-[11px] text-zinc-600">
+                        Secondary{" "}
+                        <span className="text-zinc-400">
+                          {
+                            result.secondary_horizon
+                          }
+                        </span>
+                      </p>
+
+                    </div>
+
+
+                    <div className="mt-3 grid grid-cols-4 gap-2">
+
+                      <CompactHorizonScore
+                        label="Day"
+
+                        score={
+                          result.intraday_fit_score
+                        }
+                      />
+
+
+                      <CompactHorizonScore
+                        label="Short"
+
+                        score={
+                          result.short_term_fit_score
+                        }
+                      />
+
+
+                      <CompactHorizonScore
+                        label="Swing"
+
+                        score={
+                          result.swing_fit_score
+                        }
+                      />
+
+
+                      <CompactHorizonScore
+                        label="Long"
+
+                        score={
+                          result.long_term_fit_score
+                        }
+                      />
+
+                    </div>
+
+                  </div>
+
+
+                  {/* FACTORS */}
+
+                  {
+                    (
+                      result.reasons.length > 0
+                      || result.warnings.length > 0
+                    )
+                    && (
+                      <div className="mt-4 border-t border-white/[0.06] pt-4">
+
+                        {
+                          result.reasons.length > 0
+                          && (
+                            <div className="flex gap-2.5">
+
+                              <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+
+
+                              <div>
+
+                                <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-emerald-600">
+                                  Positive factor
+                                </p>
+
+
+                                <p className="mt-1 text-xs leading-5 text-zinc-500">
+                                  {
+                                    result.reasons[
+                                      0
+                                    ]
+                                  }
+                                </p>
+
+                              </div>
+
+                            </div>
+                          )
+                        }
+
+
+                        {
+                          result.warnings.length > 0
+                          && (
+                            <div className="mt-3 flex gap-2.5">
+
+                              <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+
+
+                              <div>
+
+                                <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-amber-600">
+                                  Main caution
+                                </p>
+
+
+                                <p className="mt-1 text-xs leading-5 text-zinc-500">
+                                  {
+                                    result.warnings[
+                                      0
+                                    ]
+                                  }
+                                </p>
+
+                              </div>
+
+                            </div>
+                          )
+                        }
+
+                      </div>
+                    )
+                  }
+
+                </div>
+
+              </details>
             )
-          }
-        />
+
+          : (
+              <div
+                className="
+                  flex
+                  min-h-11
+                  items-center
+                  justify-center
+                  rounded-xl
+                  border
+                  border-white/[0.05]
+                  px-4
+                  text-sm
+                  text-zinc-700
+                "
+              >
+                No extra details
+              </div>
+            )
+        }
 
       </div>
-
-
-      <div className="mt-3 grid grid-cols-2 gap-2">
-
-        <div className="rounded-xl border border-emerald-950 bg-emerald-950/10 p-3">
-
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-700">
-            Target
-          </p>
-
-
-          <div className="mt-2 flex items-baseline justify-between gap-2">
-
-            <p className="font-semibold text-emerald-400">
-              {
-                formatMoney(
-                  result.target_price,
-                )
-              }
-            </p>
-
-
-            <p className="text-xs text-emerald-500">
-              {
-                formatPercent(
-                  result.potential_upside_percent,
-                )
-              }
-            </p>
-
-          </div>
-
-        </div>
-
-
-        <div className="rounded-xl border border-red-950 bg-red-950/10 p-3">
-
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-700">
-            Invalidation
-          </p>
-
-
-          <div className="mt-2 flex items-baseline justify-between gap-2">
-
-            <p className="font-semibold text-red-400">
-              {
-                formatMoney(
-                  result.invalidation_price,
-                )
-              }
-            </p>
-
-
-            <p className="text-xs text-red-500">
-              -
-              {
-                result.potential_downside_percent
-                  .toFixed(
-                    2,
-                  )
-              }
-              %
-            </p>
-
-          </div>
-
-        </div>
-
-      </div>
-
-
-      <div className="mt-3 rounded-xl border border-zinc-900 bg-black p-4">
-
-        <div className="flex items-center justify-between gap-3">
-
-          <p className="text-[10px] font-semibold uppercase tracking-[0.13em] text-zinc-700">
-            Horizon fit
-          </p>
-
-
-          <p className="text-xs text-zinc-600">
-            Secondary:{" "}
-            <span className="text-zinc-400">
-              {
-                result.secondary_horizon
-              }
-            </span>
-          </p>
-
-        </div>
-
-
-        <div className="mt-4 grid grid-cols-4 gap-2">
-
-          <CompactHorizonScore
-            label="Day"
-
-            score={
-              result.intraday_fit_score
-            }
-          />
-
-
-          <CompactHorizonScore
-            label="Short"
-
-            score={
-              result.short_term_fit_score
-            }
-          />
-
-
-          <CompactHorizonScore
-            label="Swing"
-
-            score={
-              result.swing_fit_score
-            }
-          />
-
-
-          <CompactHorizonScore
-            label="Long"
-
-            score={
-              result.long_term_fit_score
-            }
-          />
-
-        </div>
-
-      </div>
-
-
-      {result.reasons.length
-      > 0
-      && (
-        <div className="mt-3 rounded-xl border border-emerald-950 bg-emerald-950/10 p-4">
-
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-600">
-            Positive factor
-          </p>
-
-
-          <p className="mt-2 text-sm leading-6 text-zinc-400">
-            {
-              result.reasons[
-                0
-              ]
-            }
-          </p>
-
-        </div>
-      )}
-
-
-      {result.warnings.length
-      > 0
-      && (
-        <div className="mt-3 rounded-xl border border-amber-950 bg-amber-950/10 p-4">
-
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-600">
-            Main caution
-          </p>
-
-
-          <p className="mt-2 text-sm leading-6 text-zinc-500">
-            {
-              result.warnings[
-                0
-              ]
-            }
-          </p>
-
-        </div>
-      )}
-
-
-      <Link
-        href={{
-          pathname:
-            "/market",
-
-          query: {
-            symbol:
-              result.symbol,
-          },
-        }}
-
-        className="mt-5 block rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-center text-sm font-semibold text-white transition hover:border-zinc-700 hover:bg-white hover:text-black"
-      >
-        Open {result.symbol} analysis
-      </Link>
 
     </Card>
   );

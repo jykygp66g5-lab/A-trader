@@ -8,6 +8,7 @@ import {
 
 import {
   api,
+  removeToken,
 } from "@/lib/api";
 
 
@@ -527,37 +528,213 @@ function NavigationList({
    ACCOUNT CARD
 ========================================================= */
 
+type CurrentUser = {
+  id: number;
+  name: string;
+  email: string;
+  created_at: string;
+};
+
+
 function AccountCard() {
+  const [
+    user,
+    setUser,
+  ] = useState<
+    CurrentUser
+    | null
+  >(
+    null,
+  );
+
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(
+    true,
+  );
+
+
+  useEffect(
+    () => {
+      let cancelled =
+        false;
+
+
+      async function loadUser() {
+        try {
+          const response =
+            await api(
+              "/auth/me",
+            );
+
+
+          if (
+            !response.ok
+          ) {
+            return;
+          }
+
+
+          const data:
+            CurrentUser =
+            await response.json();
+
+
+          if (
+            !cancelled
+          ) {
+            setUser(
+              data,
+            );
+          }
+
+        } catch {
+          // Account information should not break navigation.
+
+        } finally {
+          if (
+            !cancelled
+          ) {
+            setLoading(
+              false,
+            );
+          }
+        }
+      }
+
+
+      void loadUser();
+
+
+      return () => {
+        cancelled =
+          true;
+      };
+    },
+    [],
+  );
+
+
+  function handleLogout() {
+    removeToken();
+
+    window.location.replace(
+      "/login",
+    );
+  }
+
+
+  const initials =
+    user?.name
+      .trim()
+      .split(
+        /\s+/,
+      )
+      .filter(
+        Boolean,
+      )
+      .slice(
+        0,
+        2,
+      )
+      .map(
+        (
+          part,
+        ) =>
+          part[
+            0
+          ]
+            ?.toUpperCase()
+            ?? "",
+      )
+      .join(
+        "",
+      )
+    || "?";
+
+
   return (
     <div className="rounded-2xl border border-zinc-900 bg-zinc-950/70 p-3.5">
 
       <div className="flex items-center gap-3">
 
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-zinc-800 bg-black text-xs font-semibold text-zinc-300">
-          MB
+          {
+            loading
+              ? "..."
+              : initials
+          }
         </div>
 
 
         <div className="min-w-0 flex-1">
 
           <p className="truncate text-sm font-medium text-zinc-200">
-            Maddox Butler
+            {
+              loading
+                ? "Loading account..."
+                : user?.name
+                  ?? "Account"
+            }
           </p>
 
 
-          <p className="mt-0.5 text-[11px] text-zinc-600">
-            Demo account
+          <p
+            className="mt-0.5 truncate text-[11px] text-zinc-600"
+            title={
+              user?.email
+              ?? undefined
+            }
+          >
+            {
+              user?.email
+              ?? (
+                loading
+                  ? "Checking session..."
+                  : "Signed in"
+              )
+            }
           </p>
 
         </div>
 
 
         <span
-          className="h-2 w-2 rounded-full bg-emerald-400"
+          className="h-2 w-2 shrink-0 rounded-full bg-emerald-400"
           title="Online"
         />
 
       </div>
+
+
+      <button
+        type="button"
+
+        onClick={
+          handleLogout
+        }
+
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-black px-3 py-2 text-xs font-medium text-zinc-400 transition hover:border-red-900/70 hover:bg-red-950/20 hover:text-red-300"
+      >
+        <svg
+          className="h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M10 17l5-5-5-5" />
+          <path d="M15 12H3" />
+          <path d="M21 19V5a2 2 0 0 0-2-2h-6" />
+        </svg>
+
+        Log out
+      </button>
 
     </div>
   );

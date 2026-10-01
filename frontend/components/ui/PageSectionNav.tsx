@@ -20,7 +20,9 @@ type PageSectionNavProps = {
 };
 
 
-const IDLE_DELAY = 1400;
+const MOBILE_IDLE_DELAY = 1400;
+const DESKTOP_IDLE_DELAY = 1800;
+const TOP_VISIBLE_THRESHOLD = 120;
 
 
 export default function PageSectionNav({
@@ -39,7 +41,21 @@ export default function PageSectionNav({
     setMobileActive,
   ] = useState(false);
 
-  const idleTimer = useRef<
+  const [
+    desktopActive,
+    setDesktopActive,
+  ] = useState(true);
+
+  const [
+    desktopHovering,
+    setDesktopHovering,
+  ] = useState(false);
+
+  const mobileIdleTimer = useRef<
+    ReturnType<typeof setTimeout> | null
+  >(null);
+
+  const desktopIdleTimer = useRef<
     ReturnType<typeof setTimeout> | null
   >(null);
 
@@ -51,29 +67,77 @@ export default function PageSectionNav({
   const showMobileNav = useCallback(() => {
     setMobileActive(true);
 
-    if (idleTimer.current) {
+    if (mobileIdleTimer.current) {
       clearTimeout(
-        idleTimer.current,
+        mobileIdleTimer.current,
       );
     }
 
-    idleTimer.current = setTimeout(
+    mobileIdleTimer.current = setTimeout(
       () => {
         setMobileActive(false);
       },
-      IDLE_DELAY,
+      MOBILE_IDLE_DELAY,
     );
   }, []);
 
 
+  // =====================================================
+  // DESKTOP ACTIVITY
+  // =====================================================
+
+  const scheduleDesktopHide =
+    useCallback(() => {
+      if (desktopIdleTimer.current) {
+        clearTimeout(
+          desktopIdleTimer.current,
+        );
+      }
+
+      if (
+        window.scrollY
+        <= TOP_VISIBLE_THRESHOLD
+      ) {
+        setDesktopActive(true);
+        return;
+      }
+
+      desktopIdleTimer.current =
+        setTimeout(
+          () => {
+            setDesktopActive(false);
+          },
+          DESKTOP_IDLE_DELAY,
+        );
+    }, []);
+
+
+  const showDesktopNav =
+    useCallback(() => {
+      setDesktopActive(true);
+      scheduleDesktopHide();
+    }, [
+      scheduleDesktopHide,
+    ]);
+
+
+  // =====================================================
+  // PAGE ACTIVITY
+  // =====================================================
+
   useEffect(() => {
-    const handleActivity = () => {
+    const handleScroll = () => {
+      showMobileNav();
+      showDesktopNav();
+    };
+
+    const handleTouch = () => {
       showMobileNav();
     };
 
     window.addEventListener(
       "scroll",
-      handleActivity,
+      handleScroll,
       {
         passive: true,
       },
@@ -81,31 +145,64 @@ export default function PageSectionNav({
 
     window.addEventListener(
       "touchstart",
-      handleActivity,
+      handleTouch,
       {
         passive: true,
       },
     );
 
+    scheduleDesktopHide();
+
     return () => {
       window.removeEventListener(
         "scroll",
-        handleActivity,
+        handleScroll,
       );
 
       window.removeEventListener(
         "touchstart",
-        handleActivity,
+        handleTouch,
       );
 
-      if (idleTimer.current) {
+      if (mobileIdleTimer.current) {
         clearTimeout(
-          idleTimer.current,
+          mobileIdleTimer.current,
+        );
+      }
+
+      if (desktopIdleTimer.current) {
+        clearTimeout(
+          desktopIdleTimer.current,
         );
       }
     };
   }, [
+    scheduleDesktopHide,
+    showDesktopNav,
     showMobileNav,
+  ]);
+
+
+  // =====================================================
+  // DESKTOP HOVER
+  // =====================================================
+
+  useEffect(() => {
+    if (!desktopHovering) {
+      scheduleDesktopHide();
+      return;
+    }
+
+    if (desktopIdleTimer.current) {
+      clearTimeout(
+        desktopIdleTimer.current,
+      );
+    }
+
+    setDesktopActive(true);
+  }, [
+    desktopHovering,
+    scheduleDesktopHide,
   ]);
 
 
@@ -202,6 +299,7 @@ export default function PageSectionNav({
     }
 
     setActiveSection(id);
+    setDesktopActive(true);
 
     element.scrollIntoView({
       behavior: "smooth",
@@ -209,12 +307,18 @@ export default function PageSectionNav({
     });
 
     showMobileNav();
+    scheduleDesktopHide();
   };
 
 
   if (!sections.length) {
     return null;
   }
+
+
+  const desktopVisible =
+    desktopActive
+    || desktopHovering;
 
 
   return (
@@ -225,6 +329,15 @@ export default function PageSectionNav({
 
       <nav
         aria-label="Page sections"
+
+        onMouseEnter={() => {
+          setDesktopHovering(true);
+        }}
+
+        onMouseLeave={() => {
+          setDesktopHovering(false);
+        }}
+
         className={`
           fixed
           left-1/2
@@ -232,8 +345,25 @@ export default function PageSectionNav({
           z-40
           hidden
           -translate-x-1/2
+          transition-all
+          duration-500
+          ease-out
           lg:ml-[136px]
           lg:block
+
+          ${
+            desktopVisible
+              ? `
+                translate-y-0
+                opacity-100
+              `
+              : `
+                pointer-events-none
+                -translate-y-3
+                opacity-0
+              `
+          }
+
           ${className}
         `}
       >
@@ -246,11 +376,11 @@ export default function PageSectionNav({
             overflow-x-auto
             rounded-2xl
             border
-            border-white/10
-            bg-zinc-950/65
+            border-white/[0.08]
+            bg-zinc-950/70
             p-1.5
-            shadow-2xl
-            shadow-black/25
+            shadow-xl
+            shadow-black/20
             backdrop-blur-2xl
             backdrop-saturate-150
           "
@@ -296,14 +426,14 @@ export default function PageSectionNav({
                       ${
                         active
                           ? `
-                            bg-white/10
+                            bg-white/[0.09]
                             text-white
                             shadow-inner
-                            shadow-white/5
+                            shadow-white/[0.04]
                           `
                           : `
                             text-zinc-500
-                            hover:bg-white/5
+                            hover:bg-white/[0.045]
                             hover:text-zinc-200
                           `
                       }
@@ -367,6 +497,7 @@ export default function PageSectionNav({
                 `
             }
           `}
+
           onPointerDown={
             showMobileNav
           }

@@ -22,6 +22,7 @@ from auth.service import create_current_user_dependency
 from trades.router import create_trades_router
 from playbook.router import create_playbook_router
 from market.router import create_market_router
+from watchlist.router import create_watchlist_router
 from ai_coach.router import create_ai_coach_router
 
 # Import alert models used by the application.
@@ -153,6 +154,12 @@ app.include_router(
 
 app.include_router(
     create_market_router(
+        get_current_user,
+    ),
+)
+
+app.include_router(
+    create_watchlist_router(
         get_current_user,
     ),
 )
